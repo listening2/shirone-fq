@@ -94,6 +94,47 @@ export function resolveSkillsData(
 }
 
 /**
+ * 解析时间线条目日期为可比较区间。
+ * 支持 "2026.08" / "2024-11" / "2024/11" / "2024.11.05" 等写法，
+ * 以及 "2025.03 – Present" / "2020.09 - 至今" 这类区间。
+ * 区间含 Present/至今 时终点记为 Infinity（视为进行中）；
+ * 无法识别时返回 -Infinity，使未标注日期的条目稳定排在末尾。
+ */
+export function parseTimelineDateKey(dateStr: string): {
+	start: number;
+	end: number;
+} {
+	const toKey = (raw: string): number => {
+		const parts = raw
+			.trim()
+			.split(/[.\-/]/)
+			.map((part) => Number.parseInt(part, 10));
+		if (parts.length === 0 || parts.some((part) => Number.isNaN(part))) {
+			return Number.NaN;
+		}
+		const [year, month = 1, day = 1] = parts;
+		return year * 10000 + month * 100 + day;
+	};
+
+	// 仅按「两侧带空格的横杠」切分区间，避免切开 "2024-11" 这类日期自身
+	const rangeParts = dateStr.split(/\s+[-–—]\s+/);
+	const PRESENT = /present|now|至今|当前/i;
+
+	if (rangeParts.length === 1) {
+		const key = toKey(dateStr);
+		return Number.isNaN(key)
+			? { start: Number.NEGATIVE_INFINITY, end: Number.NEGATIVE_INFINITY }
+			: { start: key, end: key };
+	}
+
+	const startKey = toKey(rangeParts[0]);
+	const start = Number.isNaN(startKey) ? Number.NEGATIVE_INFINITY : startKey;
+	const endRaw = rangeParts[1]?.trim() ?? "";
+	const end = PRESENT.test(endRaw) ? Number.POSITIVE_INFINITY : toKey(endRaw);
+	return { start, end: Number.isNaN(end) ? start : end };
+}
+
+/**
  * 解析时间线页展示数据。
  */
 export function resolveTimelineData(
@@ -108,10 +149,26 @@ export function resolveTimelineData(
 		(item) => item.title,
 	);
 
-	if (config.order === "asc") {
-		return [...filtered].reverse();
-	}
-	return filtered;
+	const itemsWithIndex = filtered.map((item, index) => ({
+		item,
+		index,
+		dateKey: parseTimelineDateKey(item.date),
+	}));
+	itemsWithIndex.sort((a, b) => {
+		const order = config.order ?? "desc";
+		let diff = 0;
+		if (a.dateKey.start !== b.dateKey.start) {
+			diff = a.dateKey.start - b.dateKey.start;
+		} else if (a.dateKey.end !== b.dateKey.end) {
+			diff = a.dateKey.end - b.dateKey.end;
+		}
+		if (diff !== 0 && !Number.isNaN(diff)) {
+			return order === "asc" ? diff : -diff;
+		}
+		// 日期相同或不可比较：保持原书写相对顺序（稳定排序）
+		return a.index - b.index;
+	});
+	return itemsWithIndex.map((x) => x.item);
 }
 
 /**

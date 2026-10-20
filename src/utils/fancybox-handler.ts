@@ -108,7 +108,12 @@ export class FancyboxHandler {
 		const mod = await import("@fancyapps/ui");
 		this.Fancybox = mod.Fancybox;
 		await import("@fancyapps/ui/dist/fancybox/fancybox.css");
-		await import("../styles/fancybox-custom.css");
+		try {
+			await import("../styles/fancybox-custom.css");
+		} catch {
+			// 样式表小于 4KB 时会被 Astro 内联进 HTML，Vite 预加载该模块会 404；
+			// 此时样式已随页面生效，忽略该预加载失败即可。
+		}
 	}
 
 	/**

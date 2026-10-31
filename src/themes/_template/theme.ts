@@ -11,4 +11,5 @@ import type { SiteThemeDefinition } from "../types";
 export default {
 	id: "template",
 	name: "Template",
+	icon: "material-symbols:palette",
 } satisfies SiteThemeDefinition;

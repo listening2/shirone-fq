@@ -9,5 +9,6 @@ import type { SiteThemeDefinition } from "../types";
 export default {
 	id: "mmz",
 	name: "Mmz",
+	icon: "material-symbols:contrast",
 	wallpaper: "none",
 } satisfies SiteThemeDefinition;

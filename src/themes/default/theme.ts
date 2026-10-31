@@ -7,4 +7,5 @@ import type { SiteThemeDefinition } from "../types";
 export default {
 	id: "default",
 	name: "Shirone",
+	icon: "material-symbols:palette",
 } satisfies SiteThemeDefinition;

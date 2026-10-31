@@ -383,9 +383,7 @@ $effect(() => {
 const hasWallpaperTab = $derived(
 	displayConfig.wallpaperMode === true && !themeHidesWallpaper(siteTheme),
 );
-const hasEffectsTab = $derived(
-	displayConfig.reduceMotion || displayConfig.effects !== false,
-);
+const hasThemeTab = $derived(siteThemeEnabled && THEMES.length > 1);
 
 const tabItems = $derived([
 	{
@@ -402,12 +400,12 @@ const tabItems = $derived([
 				},
 			]
 		: []),
-	...(hasEffectsTab
+	...(hasThemeTab
 		? [
 				{
-					value: "effects",
-					label: i18n(I18nKey.settingsTabEffects),
-					icon: "mdi:flower-poppy",
+					value: "theme",
+					label: i18n(I18nKey.siteTheme),
+					icon: "material-symbols:style",
 				},
 			]
 		: []),
@@ -423,7 +421,6 @@ const sectionExpanded = $state<Record<string, boolean>>({
 	colorSpec: true,
 	layout: true,
 	texture: true,
-	siteTheme: true,
 });
 const toggleSection = (key: string) => {
 	sectionExpanded[key] = !sectionExpanded[key];
@@ -644,29 +641,6 @@ const stylePreviews = $derived(
                     </div>
                 {/if}
 
-                {#if siteThemeEnabled && THEMES.length > 1}
-                    <div class="settings-section flex flex-col gap-1.5 pt-1" class:settings-section--collapsed={!sectionExpanded.siteTheme}>
-                        <button type="button"
-                                class="settings-section__header text-sm font-bold text-[var(--on-surface-variant)] ml-1"
-                                aria-expanded={sectionExpanded.siteTheme}
-                                onclick={() => toggleSection("siteTheme")}>
-                            {i18n(I18nKey.siteTheme)}
-                            <span class="settings-section__chevron" class:settings-section__chevron--collapsed={!sectionExpanded.siteTheme} aria-hidden="true">
-                                <Icon icon="material-symbols:keyboard-arrow-down" class="text-base" />
-                            </span>
-                        </button>
-                        <div class="settings-section__clip">
-                            <div class="settings-section__body">
-                                <SegmentedButton
-                                    options={THEMES.map((theme) => ({ value: theme.id, label: theme.name }))}
-                                    bind:value={siteTheme}
-                                    label={i18n(I18nKey.siteTheme)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                {/if}
-
                 {#if displayConfig.texture}
                     <div class="settings-section flex flex-col gap-2 pt-1" class:settings-section--collapsed={!sectionExpanded.texture}>
                         <button type="button"
@@ -699,6 +673,21 @@ const stylePreviews = $derived(
                                 </div>
                             </div>
                         </div>
+                    </div>
+                {/if}
+
+                {#if displayConfig.reduceMotion}
+                    <div class="m3-toggle-row">
+                        <Icon icon="material-symbols:motion-photos-off" class="text-lg text-[var(--primary)]" />
+                        <span class="text-sm font-bold text-[var(--on-surface)] flex-1">{i18n(I18nKey.reduceMotion)}</span>
+                        <Switch bind:checked={motionReduced} label={i18n(I18nKey.reduceMotion)} icons />
+                    </div>
+                {/if}
+                {#if displayConfig.effects !== false}
+                    <div class="m3-toggle-row">
+                        <Icon icon="mdi:flower-poppy" class="text-lg text-[var(--primary)]" />
+                        <span class="text-sm font-bold text-[var(--on-surface)] flex-1">{i18n(I18nKey.sakuraEffect)}</span>
+                        <Switch bind:checked={sakuraEnabled} label={i18n(I18nKey.sakuraEffect)} icons />
                     </div>
                 {/if}
             </div>
@@ -842,23 +831,26 @@ const stylePreviews = $derived(
                     </div>
                 {/if}
             </div>
-        {:else if activeTab === "effects"}
-            <!-- 特效：减少动态效果 + 樱花特效 -->
+        {:else if activeTab === "theme"}
+            <!-- 主题：一文件夹一主题，切换即换肤（纯前端属性，不刷新页面） -->
             <div class="p-4 flex flex-col gap-2">
-                {#if displayConfig.reduceMotion}
-                    <div class="m3-toggle-row">
-                        <Icon icon="material-symbols:motion-photos-off" class="text-lg text-[var(--primary)]" />
-                        <span class="text-sm font-bold text-[var(--on-surface)] flex-1">{i18n(I18nKey.reduceMotion)}</span>
-                        <Switch bind:checked={motionReduced} label={i18n(I18nKey.reduceMotion)} icons />
-                    </div>
-                {/if}
-                {#if displayConfig.effects !== false}
-                    <div class="m3-toggle-row">
-                        <Icon icon="mdi:flower-poppy" class="text-lg text-[var(--primary)]" />
-                        <span class="text-sm font-bold text-[var(--on-surface)] flex-1">{i18n(I18nKey.sakuraEffect)}</span>
-                        <Switch bind:checked={sakuraEnabled} label={i18n(I18nKey.sakuraEffect)} icons />
-                    </div>
-                {/if}
+                <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label={i18n(I18nKey.siteTheme)}>
+                    {#each THEMES as theme (theme.id)}
+                        <button
+                            type="button"
+                            role="radio"
+                            aria-checked={siteTheme === theme.id}
+                            title={theme.name}
+                            aria-label={theme.name}
+                            class="m3-style-cell"
+                            class:selected={siteTheme === theme.id}
+                            onclick={() => (siteTheme = theme.id)}
+                        >
+                            <Icon icon={theme.icon ?? "material-symbols:palette"} class="text-lg" />
+                            <span class="m3-style-cell__name">{theme.name}</span>
+                        </button>
+                    {/each}
+                </div>
             </div>
         {/if}
     </PanelStack>

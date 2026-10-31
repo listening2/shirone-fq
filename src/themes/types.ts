@@ -13,6 +13,8 @@ export type SiteThemeDefinition = {
 	id: string;
 	/** 显示名（专有名词，不参与 i18n，避免每加主题改十个语言文件） */
 	name: string;
+	/** 主题切换按钮上的图标（Iconify 名，须来自已安装的离线图标集） */
+	icon?: string;
 	/**
 	 * 选中该主题时的壁纸策略：
 	 * - `inherit`（默认）：沿用访客保存的壁纸模式；

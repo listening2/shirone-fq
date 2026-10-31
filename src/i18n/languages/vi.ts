@@ -382,7 +382,7 @@ export const vi: Translation = {
 	[Key.layoutMode]: "Bố cục",
 	[Key.layoutList]: "Danh sách",
 	[Key.layoutGrid]: "Lưới",
-	[Key.siteTheme]: "Giao diện trang",
+	[Key.siteTheme]: "Giao diện",
 	[Key.resetConfirmTitle]: "Đặt lại chủ đề?",
 	[Key.resetConfirmMessage]:
 		"Sẽ khôi phục hue, phong cách màu và đặc tả màu mặc định.",

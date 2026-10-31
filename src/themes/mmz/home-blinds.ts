@@ -27,6 +27,11 @@ type BlindsRuntimeConfig = {
 type BlindsDeps = {
 	setSceneVisible?: (visible: boolean) => void;
 	setGreetingVisible?: (visible: boolean) => void;
+	/**
+	 * Swup 换页时传入：内容替换那一刻 scrollY 还是旧页面的位置，平滑滚动
+	 * 要到 `swup:scroll:end` 才落定。此时不能按 scrollY 出首帧，否则会误判阶段。
+	 */
+	deferFirstSync?: boolean;
 };
 
 type StagePhase = "reveal" | "shrink" | "scenes" | "done";
@@ -959,8 +964,19 @@ export function mountHomeBlinds(
 		portal.style.visibility = visible ? "visible" : "hidden";
 	};
 
+	/**
+	 * Swup 从其他页面回到首页时，挂载发生在 `page:view`，此刻 window.scrollY 仍是
+	 * 旧页面的位置（实测文章页 700px），平滑滚动要到 `scroll:end` 才回到顶部。
+	 * 若立即 sync()，影像层会按旧位置判成收缩段，闪出一帧没有标题的全屏过渡图。
+	 * 这里先按住首帧、强制渲染揭示段，滚动落定后再交给 sync()。
+	 * 兜底超时覆盖没有滚动钩子、或滚动被中断的情况。
+	 */
+	const SCROLL_SETTLE_FALLBACK = 1200;
+	let firstSyncHeld = Boolean(deps.deferFirstSync) && window.scrollY > 0;
+	let holdTimer = 0;
+
 	const sync = () => {
-		if (signal.aborted) return;
+		if (signal.aborted || firstSyncHeld) return;
 		const scrollY = window.scrollY;
 		const vh = metrics.vh || window.innerHeight;
 		phase =
@@ -1038,6 +1054,32 @@ export function mountHomeBlinds(
 		syncPlayback();
 	};
 
+	/** 按住期间直接画揭示段：与滚动到顶部后的正常首帧完全一致，不会露出过渡图 */
+	const renderRevealFrame = () => {
+		setStageVisible(true);
+		setBackgroundVisible(true);
+		setPortalVisible(false);
+		if (heroLayer) heroLayer.dataset.visible = "true";
+	};
+
+	const releaseHold = () => {
+		if (!firstSyncHeld) return;
+		firstSyncHeld = false;
+		window.clearTimeout(holdTimer);
+		document.removeEventListener("swup:scroll:end", releaseHold);
+		sync();
+	};
+
+	const settleFirstFrame = () => {
+		if (!firstSyncHeld) {
+			sync();
+			return;
+		}
+		renderRevealFrame();
+		holdTimer = window.setTimeout(releaseHold, SCROLL_SETTLE_FALLBACK);
+		document.addEventListener("swup:scroll:end", releaseHold, { signal });
+	};
+
 	const shrinkTick = (now: number) => {
 		const delta = shrinkLastTime
 			? Math.min((now - shrinkLastTime) / 1000, 0.05)
@@ -1059,6 +1101,11 @@ export function mountHomeBlinds(
 		if (syncFrame || signal.aborted) return;
 		syncFrame = requestAnimationFrame(() => {
 			syncFrame = 0;
+			// 平滑滚动已经落到顶部时不必再等 scroll:end，提前出首帧
+			if (firstSyncHeld) {
+				if (window.scrollY <= 0) releaseHold();
+				return;
+			}
 			sync();
 		});
 	};
@@ -1095,7 +1142,7 @@ export function mountHomeBlinds(
 	);
 	cycleAnimation.pause();
 
-	sync();
+	settleFirstFrame();
 	renderScenes(0, false);
 
 	window.addEventListener("scroll", requestSync, { passive: true, signal });
@@ -1178,6 +1225,7 @@ export function mountHomeBlinds(
 
 	return () => {
 		abortController.abort();
+		window.clearTimeout(holdTimer);
 		window.clearTimeout(settleTimer);
 		window.clearTimeout(resizeTimer);
 		window.clearTimeout(resetWindTimer);

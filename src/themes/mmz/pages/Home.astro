@@ -1443,10 +1443,14 @@ const compact = (value: number) =>
 		const dialogueRoot = home.querySelector<HTMLElement>("[data-mmz-dialogue]");
 		const dialogueController = mountHomeDialogue(dialogueRoot);
 		const blindsRoot = home.querySelector<HTMLElement>("[data-mmz-blinds]");
+		/* Swup 换页时内容替换先于平滑滚动，此刻 scrollY 还是旧页面的值；
+		   首帧必须等滚动落定（`swup:scroll:end`）再出 */
+		const fromSwup = document.documentElement.dataset.swupVisiting === "true";
 		const teardownBlinds = blindsRoot
 			? mountHomeBlinds(blindsRoot, {
 					setSceneVisible: dialogueController.setSceneVisible,
 					setGreetingVisible: dialogueController.setGreetingVisible,
+					deferFirstSync: fromSwup,
 				})
 			: null;
 		const teardownProfile = mountProfileCard(home);

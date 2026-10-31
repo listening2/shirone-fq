@@ -484,6 +484,7 @@ const setup = () => {
 	function finishVisit() {
 		if (!visitActive) return;
 		visitActive = false;
+		delete document.documentElement.dataset.swupVisiting;
 		window.clearTimeout(finishTimer);
 		finishTimer = window.setTimeout(() => {
 			document.getElementById('page-height-extend')?.classList.add('hidden');
@@ -494,6 +495,8 @@ const setup = () => {
 		window.clearTimeout(finishTimer);
 		visitActive = true;
 		scrollStarted = false;
+		// 换页期间给页面脚本一个可读标记：首页影像层据此判断首帧要不要等平滑滚动落定
+		document.documentElement.dataset.swupVisiting = 'true';
 		document.getElementById('page-height-extend')?.classList.remove('hidden');
 	});
 	window.swup.hooks.on('visit:end', () => { if (!scrollStarted) finishVisit(); });

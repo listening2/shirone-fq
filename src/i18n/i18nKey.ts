@@ -363,6 +363,8 @@ enum I18nKey {
 	layoutMode = "layoutMode",
 	layoutList = "layoutList",
 	layoutGrid = "layoutGrid",
+	/** 显示设置 · 站点主题分区标题（主题包切换） */
+	siteTheme = "siteTheme",
 
 	resetConfirmTitle = "resetConfirmTitle",
 	resetConfirmMessage = "resetConfirmMessage",

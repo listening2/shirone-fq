@@ -65,6 +65,14 @@ import {
 	setTexturePreset,
 	setWallpaperMode,
 } from "@utils/setting-utils";
+import {
+	applySiteTheme,
+	defaultSiteTheme,
+	getStoredSiteTheme,
+	isSiteThemeEnabled,
+	storeSiteTheme,
+	themeHidesWallpaper,
+} from "@utils/site-theme";
 import { getSpec, getStyle, setSpec, setStyle } from "@utils/theme-utils";
 import { onMount } from "svelte";
 import {
@@ -73,6 +81,7 @@ import {
 	resolveDisplaySettings,
 	siteConfig,
 } from "@/config";
+import { THEMES } from "@/themes/registry";
 import type { FullscreenWallpaperLayout, WallpaperMode } from "@/types/config";
 import type { PostListMode } from "@/types/postListConfig";
 import type { TexturePreset } from "@/types/textureConfig";
@@ -98,6 +107,19 @@ let motionReduced = $state(false);
 const defaultLayoutMode = defaultMode();
 let postListMode = $state<PostListMode>(getStoredMode());
 let lastAppliedMode = postListMode;
+
+// 站点主题（主题包位于 src/themes/，一文件夹一主题）：切换即时生效，无整页刷新
+const siteThemeEnabled = isSiteThemeEnabled();
+const defaultSiteThemeValue = defaultSiteTheme();
+let siteTheme = $state<string>(getStoredSiteTheme());
+let lastAppliedSiteTheme = siteTheme;
+
+$effect(() => {
+	if (siteTheme === lastAppliedSiteTheme) return;
+	lastAppliedSiteTheme = siteTheme;
+	storeSiteTheme(siteTheme);
+	applySiteTheme(siteTheme);
+});
 
 // 壁纸模式与全屏布局
 const defaultWallpaperMode = siteConfig.wallpaperMode.defaultMode;
@@ -224,6 +246,7 @@ function confirmReset() {
 	style = defaultStyle;
 	spec = defaultSpec;
 	postListMode = defaultLayoutMode;
+	siteTheme = defaultSiteThemeValue;
 	wallpaperMode = defaultWallpaperMode;
 	fullscreenLayout = defaultFullscreenLayout;
 	overlayOpacityPercent = Math.round(defaultOverlayOpacity * 100);
@@ -257,6 +280,7 @@ const isDirty = $derived(
 		style !== defaultStyle ||
 		spec !== defaultSpec ||
 		postListMode !== defaultLayoutMode ||
+		siteTheme !== defaultSiteThemeValue ||
 		wallpaperMode !== defaultWallpaperMode ||
 		fullscreenLayout !== defaultFullscreenLayout ||
 		overlayOpacityPercent !== Math.round(defaultOverlayOpacity * 100) ||
@@ -356,7 +380,9 @@ $effect(() => {
 // ---------------------------------------------------------------------------
 // 标签页：外观 / 壁纸 / 特效（仅一个标签可见时隐藏 Tab 栏）
 // ---------------------------------------------------------------------------
-const hasWallpaperTab = $derived(displayConfig.wallpaperMode === true);
+const hasWallpaperTab = $derived(
+	displayConfig.wallpaperMode === true && !themeHidesWallpaper(siteTheme),
+);
 const hasEffectsTab = $derived(
 	displayConfig.reduceMotion || displayConfig.effects !== false,
 );
@@ -397,6 +423,7 @@ const sectionExpanded = $state<Record<string, boolean>>({
 	colorSpec: true,
 	layout: true,
 	texture: true,
+	siteTheme: true,
 });
 const toggleSection = (key: string) => {
 	sectionExpanded[key] = !sectionExpanded[key];
@@ -611,6 +638,29 @@ const stylePreviews = $derived(
                                     ]}
                                     bind:value={postListMode}
                                     label={i18n(I18nKey.layoutMode)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                {/if}
+
+                {#if siteThemeEnabled && THEMES.length > 1}
+                    <div class="settings-section flex flex-col gap-1.5 pt-1" class:settings-section--collapsed={!sectionExpanded.siteTheme}>
+                        <button type="button"
+                                class="settings-section__header text-sm font-bold text-[var(--on-surface-variant)] ml-1"
+                                aria-expanded={sectionExpanded.siteTheme}
+                                onclick={() => toggleSection("siteTheme")}>
+                            {i18n(I18nKey.siteTheme)}
+                            <span class="settings-section__chevron" class:settings-section__chevron--collapsed={!sectionExpanded.siteTheme} aria-hidden="true">
+                                <Icon icon="material-symbols:keyboard-arrow-down" class="text-base" />
+                            </span>
+                        </button>
+                        <div class="settings-section__clip">
+                            <div class="settings-section__body">
+                                <SegmentedButton
+                                    options={THEMES.map((theme) => ({ value: theme.id, label: theme.name }))}
+                                    bind:value={siteTheme}
+                                    label={i18n(I18nKey.siteTheme)}
                                 />
                             </div>
                         </div>

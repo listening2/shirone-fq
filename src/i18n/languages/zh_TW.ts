@@ -368,6 +368,7 @@ export const zh_TW: Translation = {
 	[Key.layoutMode]: "佈局",
 	[Key.layoutList]: "列表",
 	[Key.layoutGrid]: "網格",
+	[Key.siteTheme]: "站點主題",
 	[Key.resetConfirmTitle]: "重置主題設定？",
 	[Key.resetConfirmMessage]: "將恢復為站點預設的色相、配色風格與 Color Spec。",
 	[Key.cancel]: "取消",

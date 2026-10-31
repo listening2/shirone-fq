@@ -75,6 +75,7 @@ export {
 	resolveTextureOptions,
 	siteConfig,
 } from "./siteConfig";
+export { siteThemeConfig } from "./siteThemeConfig";
 export { skillsConfig } from "./skillsConfig";
 export { resolveSponsorMethods, sponsorConfig } from "./sponsorConfig";
 export { timelineConfig } from "./timelineConfig";

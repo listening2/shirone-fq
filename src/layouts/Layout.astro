@@ -32,7 +32,10 @@ import { resolvePageWidth } from "../utils/responsive-utils";
 import { pathsEqual, url } from "../utils/url-utils";
 import "../styles/main.css";
 import "../styles/font-faces.css";
+import { THEMES } from "@/themes/registry";
+import { getThemeCss } from "@/themes/styles";
 import textureStyles from "../styles/textures.css?raw";
+import { defaultSiteTheme, isSiteThemeEnabled } from "../utils/site-theme";
 
 interface Props {
 	title?: string;
@@ -65,6 +68,18 @@ const lightTheme =
 	expressiveCodeConfig.lightTheme ?? expressiveCodeConfig.theme;
 const darkTheme = expressiveCodeConfig.darkTheme ?? expressiveCodeConfig.theme;
 const defaultWallpaperMode = siteConfig.wallpaperMode.defaultMode;
+// 站点主题：主题包位于 src/themes/，一文件夹一主题。关闭时不写属性、不输出 CSS
+const siteThemeEnabled = isSiteThemeEnabled();
+const siteThemeIds = THEMES.map((theme) => theme.id);
+const defaultSiteThemeId = defaultSiteTheme();
+const noWallpaperThemeIds = THEMES.filter(
+	(theme) => theme.wallpaper === "none",
+).map((theme) => theme.id);
+const siteThemeCss = siteThemeEnabled
+	? getThemeCss()
+			.map((entry) => entry.css)
+			.join("\n")
+	: "";
 const defaultFullscreenLayout =
 	siteConfig.wallpaperMode.fullscreen?.layout === "hero" ? "hero" : "classic";
 const defaultOverlayOpacity = Math.min(
@@ -145,6 +160,7 @@ const hasMonoFont =
 		<meta name="generator" content={Astro.generator} />
 		{fontRoleStyle && <style is:inline set:html={fontRoleStyle}></style>}
 		{textureEnabled && <style is:inline set:html={textureStyles}></style>}
+		{siteThemeCss && <style is:inline set:html={siteThemeCss}></style>}
 		{hasBodyFont && <Font cssVariable={resolvedFontOptions.roles.body.cssVariable as never} preload={resolvedFontOptions.roles.body.preload} />}
 		{hasCjkFont && <Font cssVariable={resolvedFontOptions.roles.cjk.cssVariable as never} preload={resolvedFontOptions.roles.cjk.preload} />}
 		{hasMonoFont && <Font cssVariable={resolvedFontOptions.roles.mono.cssVariable as never} preload={resolvedFontOptions.roles.mono.preload} />}
@@ -159,7 +175,7 @@ const hasMonoFont =
 			/>
 		))}
 
-		<script is:inline define:vars={{DEFAULT_THEME, LIGHT_MODE, DARK_MODE, AUTO_MODE, BANNER_HEIGHT_EXTEND, configHue, lightTheme, darkTheme, defaultWallpaperMode, defaultFullscreenLayout, defaultOverlayOpacity, defaultOverlayBlur, defaultOverlayCardOpacity, defaultBannerTitleEnabled, defaultBannerCarouselEnabled, defaultBannerWavesEnabled, defaultTexturePreset, defaultTextureOpacity, textureEnabled, defaultMcStyle, defaultMcSpec}}>
+		<script is:inline define:vars={{DEFAULT_THEME, LIGHT_MODE, DARK_MODE, AUTO_MODE, BANNER_HEIGHT_EXTEND, configHue, lightTheme, darkTheme, defaultWallpaperMode, defaultFullscreenLayout, defaultOverlayOpacity, defaultOverlayBlur, defaultOverlayCardOpacity, defaultBannerTitleEnabled, defaultBannerCarouselEnabled, defaultBannerWavesEnabled, defaultTexturePreset, defaultTextureOpacity, textureEnabled, defaultMcStyle, defaultMcSpec, siteThemeEnabled, siteThemeIds, defaultSiteThemeId, noWallpaperThemeIds}}>
 			const theme = localStorage.getItem('theme') || DEFAULT_THEME;
 			// 亮暗切换按钮图标由纯 CSS 消费 data-theme-mode，首帧前落位避免水合后闪现
 			document.documentElement.dataset.themeMode = theme;
@@ -204,10 +220,21 @@ const hasMonoFont =
 			if (localStorage.getItem('mc-motion') === 'reduced') {
 				document.documentElement.classList.add('motion-reduced');
 			}
+			// 站点主题：首帧前落位，避免切回纯色壳的访客先看到默认外观再跳变。
+			// 功能关闭时不写任何属性，访客残留偏好也不参与（与轮播开关同款守卫）
+			if (siteThemeEnabled) {
+				const storedSiteTheme = localStorage.getItem('site-theme');
+				const siteTheme = siteThemeIds.includes(storedSiteTheme) ? storedSiteTheme : defaultSiteThemeId;
+				document.documentElement.dataset.siteTheme = siteTheme;
+			}
+			const siteThemeHidesWallpaper = siteThemeEnabled
+				&& noWallpaperThemeIds.includes(document.documentElement.dataset.siteTheme);
 			const storedWallpaperMode = localStorage.getItem('wallpaper-mode');
-			const wallpaperMode = ['banner', 'none', 'fullscreen', 'overlay'].includes(storedWallpaperMode)
-				? storedWallpaperMode
-				: defaultWallpaperMode;
+			const wallpaperMode = siteThemeHidesWallpaper
+				? 'none'
+				: ['banner', 'none', 'fullscreen', 'overlay'].includes(storedWallpaperMode)
+					? storedWallpaperMode
+					: defaultWallpaperMode;
 			document.documentElement.dataset.wallpaperMode = wallpaperMode;
 			// 全屏壁纸布局（classic / hero）与半透明卡片开关：首帧前同步，避免闪烁
 			const storedFullscreenLayout = localStorage.getItem('wallpaper-fullscreen-layout');

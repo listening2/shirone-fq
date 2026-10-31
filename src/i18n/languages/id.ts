@@ -375,6 +375,7 @@ export const id: Translation = {
 	[Key.layoutMode]: "Tata letak",
 	[Key.layoutList]: "Daftar",
 	[Key.layoutGrid]: "Kisi",
+	[Key.siteTheme]: "Tema situs",
 	[Key.backgroundVideo]: "Video latar",
 	[Key.texturePreset]: "Tekstur latar belakang",
 	[Key.texturePresetNone]: "Tanpa tekstur",

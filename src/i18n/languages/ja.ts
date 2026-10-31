@@ -381,6 +381,7 @@ export const ja: Translation = {
 	[Key.layoutMode]: "レイアウト",
 	[Key.layoutList]: "リスト",
 	[Key.layoutGrid]: "グリッド",
+	[Key.siteTheme]: "サイトテーマ",
 	[Key.resetConfirmTitle]: "テーマをリセットしますか？",
 	[Key.resetConfirmMessage]: "既定の色相・配色スタイル・配色仕様に戻ります。",
 	[Key.cancel]: "キャンセル",

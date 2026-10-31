@@ -365,6 +365,7 @@ export const th: Translation = {
 	[Key.layoutMode]: "เลย์เอาต์",
 	[Key.layoutList]: "รายการ",
 	[Key.layoutGrid]: "กริด",
+	[Key.siteTheme]: "ธีมเว็บไซต์",
 	[Key.resetConfirmTitle]: "รีเซ็ตธีมหรือไม่",
 	[Key.resetConfirmMessage]: "จะคืนค่าสีหลัก สไตล์สี และสเปกสีกลับเป็นค่าเริ่มต้น",
 	[Key.cancel]: "ยกเลิก",

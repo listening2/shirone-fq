@@ -383,6 +383,7 @@ export const tr: Translation = {
 	[Key.layoutMode]: "Düzen",
 	[Key.layoutList]: "Liste",
 	[Key.layoutGrid]: "Izgara",
+	[Key.siteTheme]: "Site teması",
 	[Key.resetConfirmTitle]: "Tema sıfırlansın mı?",
 	[Key.resetConfirmMessage]:
 		"Varsayılan renk tonu, renk stili ve renk spesifikasyonu geri yüklenecek.",

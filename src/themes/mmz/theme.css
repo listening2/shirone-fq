@@ -1,0 +1,61 @@
+/* Mmz 皮肤：零饱和度中性灰阶、无阴影、细描边。
+   仅在站点启用主题功能且访客选中 mmz 时生效。
+   所有顶层规则必须带 html[data-site-theme="mmz"] 前缀（check-themes 会校验），
+   未分层的内联样式天然压过 Tailwind 的 @layer utilities。 */
+
+html:root[data-site-theme="mmz"] {
+	/* 表面族：零饱和度灰阶，--page-bg / --card-bg 等上层令牌会自动跟随 */
+	--surface: oklch(0.97 0 0);
+	--surface-dim: oklch(0.94 0 0);
+	--surface-bright: oklch(0.99 0 0);
+	--surface-container-lowest: oklch(1 0 0);
+	--surface-container-low: oklch(0.98 0 0);
+	--surface-container: oklch(0.965 0 0);
+	--surface-container-high: oklch(0.95 0 0);
+	--surface-container-highest: oklch(0.93 0 0);
+	--surface-variant: oklch(0.93 0 0);
+	--page-bg: oklch(0.985 0 0);
+	--card-bg: oklch(1 0 0);
+	--float-panel-bg: oklch(0.965 0 0);
+	--on-surface: oklch(0.18 0 0);
+	--on-surface-variant: oklch(0.44 0 0);
+	--outline: oklch(0.55 0 0);
+	--outline-variant: oklch(0.87 0 0);
+}
+
+html:root[data-site-theme="mmz"].dark {
+	--surface: oklch(0.14 0 0);
+	--surface-dim: oklch(0.11 0 0);
+	--surface-bright: oklch(0.22 0 0);
+	--surface-container-lowest: oklch(0.1 0 0);
+	--surface-container-low: oklch(0.15 0 0);
+	--surface-container: oklch(0.18 0 0);
+	--surface-container-high: oklch(0.21 0 0);
+	--surface-container-highest: oklch(0.25 0 0);
+	--surface-variant: oklch(0.28 0 0);
+	--page-bg: oklch(0.1 0 0);
+	--card-bg: oklch(0.15 0 0);
+	--float-panel-bg: oklch(0.18 0 0);
+	--on-surface: oklch(0.93 0 0);
+	--on-surface-variant: oklch(0.72 0 0);
+	--outline: oklch(0.5 0 0);
+	--outline-variant: oklch(0.3 0 0);
+}
+
+/* 卡片：去掉 elevation，改为 1px 细描边；底色跟随页面令牌而非色相派生表面 */
+html:root[data-site-theme="mmz"] .m3-card {
+	--m3-card-bg: var(--card-bg);
+	box-shadow: none;
+	border: 1px solid var(--outline-variant);
+}
+
+/* 顶栏：去掉投影，改用一条细分割线 */
+html:root[data-site-theme="mmz"] .top-app-bar {
+	box-shadow: none;
+	border-bottom: 1px solid var(--outline-variant);
+}
+
+/* 背景纹理属于壁纸氛围，灰阶皮肤下不显示 */
+html:root[data-site-theme="mmz"] #m3e-texture-canvas {
+	display: none;
+}

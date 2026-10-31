@@ -111,6 +111,12 @@ export const CONFIG_DOMAINS = Object.freeze([
 		module: "@/types/imageBloomConfig",
 	},
 	{
+		key: "siteTheme",
+		file: "site-theme",
+		type: "SiteThemeConfig",
+		module: "@/types/siteThemeConfig",
+	},
+	{
 		key: "skills",
 		file: "skills",
 		type: "SkillsConfig",

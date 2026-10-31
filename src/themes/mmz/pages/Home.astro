@@ -2735,8 +2735,10 @@ const compact = (value: number) =>
 		   reveal 背景的 cover 裁切与 portal 收缩几何都以此为基准 */
 		overflow: hidden;
 		background: var(--page-bg);
-		opacity: 0;
-		visibility: hidden;
+		/* 默认就铺 reveal 图：Swup 换页时内容先于脚本落位，如果这里默认隐藏，
+		   新页面会先闪一帧没有影像的空白纹理。首页顶部本来就该是这张图 */
+		opacity: 1;
+		visibility: visible;
 		pointer-events: none;
 	}
 

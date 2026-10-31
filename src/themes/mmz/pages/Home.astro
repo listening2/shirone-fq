@@ -86,8 +86,9 @@ const avatarUrl = await resolveAsset(profileConfig.avatar ?? "");
 const pinnedUrls = new Set(data.pinned.map((post) => post.url));
 const freshPosts = data.recent.filter((post) => !pinnedUrls.has(post.url));
 
-/* 内容区：近期文章置顶优先补满 5 条；动态时间线沿用路由层组装结果 */
-const afterglowPosts = [...data.pinned, ...freshPosts].slice(0, 5);
+/* 内容区：近期文章置顶优先，一次载入 12 条；面板首屏露出约 6 条，
+   其余的在面板内向下滚动，和右侧动态时间线同一套交互 */
+const afterglowPosts = [...data.pinned, ...freshPosts].slice(0, 12);
 const momentItems = data.moments ?? [];
 const noticeText = announcementConfig.content.trim();
 const noticeLinkConfig = announcementConfig.link;

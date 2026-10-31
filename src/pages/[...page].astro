@@ -52,8 +52,9 @@ if (hasHomeVariants) {
 		isPageAvailable("moments") ? getRecentMomentItems(6) : Promise.resolve([]),
 	]);
 	const latest = posts[0];
+	/* 首页近期文章：首屏可见约 6 条，多带几条让内容区能像动态列一样内部滚动 */
 	const recent = await Promise.all(
-		posts.slice(0, 6).map((post) => toHomePost(post)),
+		posts.slice(0, 12).map((post) => toHomePost(post)),
 	);
 	const pinned = await Promise.all(
 		posts

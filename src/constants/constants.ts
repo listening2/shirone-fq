@@ -47,6 +47,7 @@ export const TEXTURE_PRESETS = [
 	"topography",
 	"geometric",
 	"sakura",
+	"jigsaw",
 ] as const;
 
 // Banner height unit: vh

@@ -197,6 +197,11 @@ const textureOptions: {
 		labelKey: I18nKey.texturePresetSakura,
 		icon: "material-symbols:local-florist-outline-rounded",
 	},
+	{
+		value: "jigsaw",
+		labelKey: I18nKey.texturePresetJigsaw,
+		icon: "material-symbols:extension-outline-rounded",
+	},
 ];
 
 // 壁纸模式选项（2×2 宫格，带图标）

@@ -1,7 +1,8 @@
-/* Mmz 皮肤：零饱和度中性灰阶、无阴影、细描边。
-   仅在站点启用主题功能且访客选中 mmz 时生效。
+/* Mmz 皮肤：零饱和度中性色门户，影像保留原色。仅在站点启用主题功能且访客选中 mmz 时生效。
    所有顶层规则必须带 html[data-site-theme="mmz"] 前缀（check-themes 会校验），
-   未分层的内联样式天然压过 Tailwind 的 @layer utilities。 */
+   未分层的内联样式天然压过 Tailwind 的 @layer utilities。
+   本文件只做视觉覆盖：不改壳结构（导航 / 侧栏 / FAB / footer 仍由 MainGridLayout 提供），
+   参考站那种「无侧栏 + 居中胶囊导航 + 全宽内容」通过显隐与重排达成。 */
 
 html:root[data-site-theme="mmz"] {
 	/* 表面族：零饱和度灰阶，--page-bg / --card-bg 等上层令牌会自动跟随 */
@@ -21,6 +22,13 @@ html:root[data-site-theme="mmz"] {
 	--on-surface-variant: oklch(0.44 0 0);
 	--outline: oklch(0.55 0 0);
 	--outline-variant: oklch(0.87 0 0);
+	/* 主色系同样去色相：按钮/链接/焦点环全站中性化 */
+	--primary: oklch(0.22 0 0);
+	--on-primary: oklch(0.99 0 0);
+	--primary-container: oklch(0.9 0 0);
+	--on-primary-container: oklch(0.18 0 0);
+	--secondary: oklch(0.4 0 0);
+	--tertiary: oklch(0.32 0 0);
 }
 
 html:root[data-site-theme="mmz"].dark {
@@ -40,6 +48,12 @@ html:root[data-site-theme="mmz"].dark {
 	--on-surface-variant: oklch(0.72 0 0);
 	--outline: oklch(0.5 0 0);
 	--outline-variant: oklch(0.3 0 0);
+	--primary: oklch(0.95 0 0);
+	--on-primary: oklch(0.12 0 0);
+	--primary-container: oklch(0.32 0 0);
+	--on-primary-container: oklch(0.92 0 0);
+	--secondary: oklch(0.8 0 0);
+	--tertiary: oklch(0.74 0 0);
 }
 
 /* 卡片：去掉 elevation，改为 1px 细描边；底色跟随页面令牌而非色相派生表面 */
@@ -49,13 +63,137 @@ html:root[data-site-theme="mmz"] .m3-card {
 	border: 1px solid var(--outline-variant);
 }
 
-/* 顶栏：去掉投影，改用一条细分割线 */
+/* 顶栏：去掉投影与底色，变成浮在门户上的居中胶囊导航。
+   整条导航收进一枚半透明胶囊，压在近黑 Hero 上时文字仍然可读。 */
 html:root[data-site-theme="mmz"] .top-app-bar {
+	background-color: transparent;
 	box-shadow: none;
-	border-bottom: 1px solid var(--outline-variant);
+	border: 0;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
 }
 
-/* 背景纹理属于壁纸氛围，灰阶皮肤下不显示 */
-html:root[data-site-theme="mmz"] #m3e-texture-canvas {
+html:root[data-site-theme="mmz"] .top-app-bar > div {
+	width: calc(100% - clamp(0.5rem, 2vw, 1.5rem) * 2);
+	height: 3.5rem;
+	margin-top: 0.75rem;
+	padding-inline: 0.75rem;
+	border: 1px solid var(--outline-variant);
+	border-radius: var(--shape-corner-full);
+	background-color: color-mix(
+		in oklab,
+		var(--surface-container-low) 86%,
+		transparent
+	);
+	-webkit-backdrop-filter: blur(14px);
+	backdrop-filter: blur(14px);
+}
+
+/* 导航条目不再单独包胶囊，避免与整条胶囊形成双层描边 */
+html:root[data-site-theme="mmz"] .top-app-bar__nav {
+	height: 2.5rem;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background-color: transparent;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+html:root[data-site-theme="mmz"] .top-app-bar__nav-link {
+	color: var(--on-surface-variant);
+	font-weight: 500;
+}
+
+html:root[data-site-theme="mmz"] .top-app-bar__nav-link:hover,
+html:root[data-site-theme="mmz"] .top-app-bar__nav-link--active {
+	color: var(--on-surface);
+}
+
+/* 1024–1279 之间整排导航放不进胶囊，会折成两行撑破圆角。
+   这一档收起行内导航，只留菜单按钮 + 站点名 + 右侧图标。 */
+@media (max-width: 1279.98px) {
+	html:root[data-site-theme="mmz"] .top-app-bar__nav {
+		display: none;
+	}
+}
+
+/* 背景底纹统一交给站点的纹理系统（#m3e-texture-canvas）：
+   黑白门户不再自带私货图案，访客在「显示设置 → 背景纹理」里选中的预设
+   （含新增的拼图底纹）在所有页面一致生效，因此这里既不隐藏纹理层，
+   也不再叠加 body 底图。 */
+
+/* 整站换壳：侧栏、分类条与悬浮控件在黑白门户里让位给全宽内容 */
+html:root[data-site-theme="mmz"] #sidebar,
+html:root[data-site-theme="mmz"] #sidebar-secondary,
+html:root[data-site-theme="mmz"] #category-bar-region,
+html:root[data-site-theme="mmz"] #floating-controls {
+	display: none;
+}
+
+/* 网格塌缩为单列，主内容独占并居中（内容列宽度覆盖侧栏让出的空间） */
+html:root[data-site-theme="mmz"] #main-grid {
+	display: block;
+}
+
+html:root[data-site-theme="mmz"] #main-content-column {
+	max-width: 80rem;
+	margin-inline: auto;
+}
+
+/* 首页：顶栏与主内容都从视口顶部开始，整屏 Hero 铺满并让胶囊导航浮在其上。
+   仅当页面存在 .mmz-home 时生效，站内其它页面仍保留顶栏占位，避免内容被遮挡。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) #top-row {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	width: auto;
+	max-width: none;
+	z-index: 100;
+	background: transparent;
+}
+
+/* #main-layout 默认从 5.5rem（顶栏高度）开始；首页 Hero 自带满屏舞台，
+   抵消这段偏移后内容从 0 开始 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) #main-layout {
+	top: 0;
+}
+
+/* 主内容列默认 overflow:hidden（防长文撑破布局），会把 100vw 的首页 Hero
+   裁到内容列内。仅在首页放开裁剪，站内其它页面保持原样。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) #main-content-column {
+	overflow: visible;
+}
+
+/* #content-wrapper 的 onload 动画用 fill-mode: forwards，播完后仍残留 identity
+   transform，会成为内部 position: fixed 的包含块，把首页固定舞台压进内容列并
+   拉成整页高。首页自带独立入场时间线，这里直接停用该动画并保持内容可见。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) #content-wrapper.onload-animation {
+	animation: none;
+	opacity: 1;
+}
+
+/* 首页 Hero 与导览层都是 100vw 出血；带经典滚动条的系统上 100vw 含滚动条宽度，
+   会多出一条横向滚动。只在首页裁掉根节点的横向溢出，纵向滚动与 sticky 不受影响。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) {
+	overflow-x: hidden;
+}
+
+/* 首页自带品牌/联系方式/备案/运行时长页脚，通用页脚在首页让位，
+   避免同一页面出现两套页脚。站内其它页面保持原样。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) .footer {
+	display: none;
+}
+
+/* 悬浮音乐播放器：去投影，改为细描边面板，贴近参考站的左下角播放器 */
+html:root[data-site-theme="mmz"] .music-float-player {
+	border: 1px solid var(--outline-variant);
+	box-shadow: none;
+}
+
+/* 首页是整屏门户版式，固定浮窗会压住 Hero 右下联系入口和移动端时间线；
+   只在首页隐藏，其它页面照常保留播放器。 */
+html:root[data-site-theme="mmz"]:has(.mmz-home) .music-float-player {
 	display: none;
 }

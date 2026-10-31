@@ -1,17 +1,29 @@
 ---
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
+import { resolveAsset } from "@utils/asset-utils";
+import { isPageAvailable } from "@utils/page-availability";
 import { url } from "@utils/url-utils";
 import { Icon } from "astro-icon/components";
-import { profileConfig, siteConfig } from "@/config";
+import {
+	announcementConfig,
+	LinkPresets,
+	profileConfig,
+	siteConfig,
+} from "@/config";
+import type { NavBarLink } from "@/types/navBarConfig";
+import packageMetadata from "../../../../package.json";
 import type { ThemeHomeData } from "../../types";
+import dialogueSoundSrc from "../assets/dialogue/meow.mp3?url";
+import BlindsScene from "../components/BlindsScene.astro";
 
 /**
- * Mmz 风格首页变体（静态版）。
+ * Mmz 风格首页变体：全屏明信片收缩 + 横向五幕。
  *
- * 只还原 MmzMing 首页的两层视觉：字标 Hero + 数据导览卡。
- * 不搬 GSAP / 滚动叙事 / canvas 雨珠；所有文案来自配置与 i18n，
- * 不硬编码任何用户可见文本。样式仅在本变体内生效，不污染默认首页。
+ * 桌面端首页只有影像层：首屏是一张全屏彩色明信片，向下滚动收进首幕图框，
+ * 随后横向推进五幕（拼图底纹、气泡墙与 GIF 立绘），最后一幕停住后再滚出。
+ * 左下角角色对话在首屏与收缩段贴在视口底边，进入横滑后收起。
+ * 移动端（≤768px）改为两屏：个人信息 + 置顶卡 + 最新时间线。
  */
 interface Props {
 	data: ThemeHomeData;
@@ -20,297 +32,3714 @@ interface Props {
 const { data } = Astro.props;
 
 const name = profileConfig.name;
-// 字标背景的幽灵首字母：取站点名首字符，纯装饰，已对无障碍隐藏
-const initial = name.trim().charAt(0).toUpperCase() || "S";
+const subtitle = siteConfig.subtitle;
+const bio = profileConfig.bio;
+const links = profileConfig.links;
+const displayName = profileConfig.displayName ?? name;
+const occupation = profileConfig.occupation;
+const hero = profileConfig.homeHero;
 
-const cards = [
-	{
-		href: url("/archive/"),
-		value: String(data.posts),
-		label: i18n(I18nKey.statsPosts),
-		icon: "material-symbols:article-outline-rounded",
-	},
-	{
-		href: url("/categories/"),
-		value: String(data.categories),
-		label: i18n(I18nKey.categories),
-		icon: "material-symbols:category-outline-rounded",
-	},
-	{
-		href: url("/tags/"),
-		value: String(data.tags),
-		label: i18n(I18nKey.tags),
-		icon: "material-symbols:tag-outline-rounded",
-	},
-	{
-		href: data.latest?.url ?? url("/archive/"),
-		value: data.latest?.date ?? i18n(I18nKey.noData),
-		label: i18n(I18nKey.recentPosts),
-		icon: "material-symbols:schedule-rounded",
-	},
+/* 首屏右栏 / 底部对话卡：任一字段存在才渲染整层，全缺省时零 DOM 负担 */
+const hasHeroAside = Boolean(
+	hero?.pillText ||
+		hero?.verticalTitle ||
+		hero?.verticalCreative ||
+		hero?.footerText ||
+		hero?.speechChinese ||
+		hero?.speechEnglish,
+);
+
+/* 终幕：放大到底后居中显示的文案 */
+const finaleTitle = hero?.finaleTitle;
+const finaleSubtitle = hero?.finaleSubtitle;
+
+/* 「快速带你前往」：按页面可用性过滤，关闭的页面自动消失；
+   同时收窄 url，供模板直接拼绝对路径 */
+const quickLinks = [
+	LinkPresets.Archive,
+	LinkPresets.Categories,
+	LinkPresets.Tags,
+	LinkPresets.Moments,
+	LinkPresets.Projects,
+	LinkPresets.Albums,
+	LinkPresets.Anime,
+	LinkPresets.Timeline,
+	LinkPresets.Sponsor,
+	LinkPresets.Friends,
+	LinkPresets.Guestbook,
+	LinkPresets.About,
+	LinkPresets.Skills,
+	LinkPresets.Devices,
+	LinkPresets.Compass,
+].filter(
+	(link): link is NavBarLink & { url: string } =>
+		Boolean(link.url) && isPageAvailable(link.pageKey ?? "home"),
+);
+
+/* 「更多」入口：预设自身一定带 url，缺失时回退到该页固定路由 */
+const archiveHref = url(LinkPresets.Archive.url ?? "/archive/");
+const momentsHref = url(LinkPresets.Moments.url ?? "/moments/");
+
+const avatarUrl = await resolveAsset(profileConfig.avatar ?? "");
+
+// 牌堆：置顶优先，不足时用最近文章补齐
+const pinnedUrls = new Set(data.pinned.map((post) => post.url));
+const freshPosts = data.recent.filter((post) => !pinnedUrls.has(post.url));
+
+/* 内容区：近期文章置顶优先补满 5 条；动态时间线沿用路由层组装结果 */
+const afterglowPosts = [...data.pinned, ...freshPosts].slice(0, 5);
+const momentItems = data.moments ?? [];
+const noticeText = announcementConfig.content.trim();
+const noticeLinkConfig = announcementConfig.link;
+const noticeLink =
+	noticeText &&
+	noticeLinkConfig?.enable &&
+	noticeLinkConfig.text &&
+	noticeLinkConfig.url
+		? noticeLinkConfig
+		: null;
+// 移动端叠放卡最多 3 张，层数再多下探量会挤成一条
+const mobileDeckItems = [...data.pinned, ...freshPosts].slice(0, 3);
+const timeline = data.recent.slice(0, 6);
+
+/* 气泡取摘要的第一个分句，读起来像一句留言，而不是标签清单 */
+const bubbleLine = (text: string, limit = 22) => {
+	const clause =
+		text.replace(/\s+/g, " ").split(/[，。；：!?！？,.;:]/)[0] ?? text;
+	const clean = clause.trim();
+	return clean.length > limit ? `${clean.slice(0, limit)}…` : clean;
+};
+
+// 影像层素材：全屏揭示背景、后四幕插画、两张 GIF 立绘、角色贴纸
+const blindsRevealSrc = await resolveAsset(
+	"themes/mmz/assets/blinds/reveal.webp",
+);
+const blindSceneSrcs = await Promise.all(
+	["scene-1", "scene-2", "scene-3", "scene-4"].map((name) =>
+		resolveAsset(`themes/mmz/assets/blinds/${name}.webp`),
+	),
+);
+const standSrcs = await Promise.all(
+	["stand-1", "stand-2"].map((name) =>
+		resolveAsset(`themes/mmz/assets/blinds/${name}.gif`),
+	),
+);
+const dollSrc = await resolveAsset("themes/mmz/assets/blinds/doll.avif");
+/* ---------------- 悬浮个人卡与首页页脚 ---------------- */
+
+/* 社交图标一分为二：前四个放在名片卡主行，其余收进「其他站点」 */
+const primaryLinks = links.slice(0, 4);
+const otherSiteLinks = links.slice(4);
+
+/* 12 个月 × 5 格热力图：按每月第 1/8/15/22/29 天起分段统计发文量，
+   再按窗口内峰值量化成 4 档（0 表示当月该段无发文） */
+const heatmapMonths = (() => {
+	const now = new Date();
+	const locale = siteConfig.lang.replaceAll("_", "-");
+	const postDates = data.postDates ?? [];
+	const months = Array.from({ length: 12 }, (_, index) => {
+		const cursor = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+		const year = cursor.getFullYear();
+		const month = cursor.getMonth();
+		const counts = Array.from({ length: 5 }, () => 0);
+		for (const iso of postDates) {
+			const date = new Date(`${iso}T00:00:00`);
+			if (Number.isNaN(date.getTime())) continue;
+			if (date.getFullYear() !== year || date.getMonth() !== month) continue;
+			counts[Math.min(4, Math.floor((date.getDate() - 1) / 7))] += 1;
+		}
+		return {
+			label: new Intl.DateTimeFormat(locale, { month: "short" }).format(cursor),
+			counts,
+		};
+	});
+	const peak = Math.max(1, ...months.flatMap((item) => item.counts));
+	return months.map((item) => ({
+		label: item.label,
+		cells: item.counts.map((count) =>
+			count === 0 ? 0 : Math.min(3, Math.ceil((count / peak) * 3)),
+		),
+	}));
+})();
+
+/* 页脚：备案与自定义链接全部可选，缺省项不输出任何 DOM */
+const footerOptions = profileConfig.homeFooter;
+const footerBrand = footerOptions?.brand ?? name;
+const footerLogo = footerOptions?.logo
+	? await resolveAsset(footerOptions.logo)
+	: null;
+const footerTagline = footerOptions?.tagline ?? bio;
+
+const isExternalHref = (href: string) => /^(?:https?:)?\/\//i.test(href);
+const footerLinks = [
+	{ label: "RSS", href: url("rss/"), external: false },
+	{ label: "Atom", href: url("atom/"), external: false },
+	{ label: "Sitemap", href: url("sitemap-index.xml"), external: true },
+	...(footerOptions?.links ?? []).map((link) => {
+		const external = isExternalHref(link.url);
+		return {
+			label: link.label,
+			href: external ? link.url : url(link.url),
+			external,
+		};
+	}),
 ];
+
+const fillTemplate = (
+	template: string,
+	vars: Record<string, string | number>,
+) =>
+	template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? ""));
+
+/* 运行时长：建站日期优先取配置，其次退到最早文章日期；两者都没有则整行省略 */
+const earliestPostDate = data.postDates?.length
+	? [...data.postDates].sort()[0]
+	: undefined;
+const runtimeSince = footerOptions?.since || earliestPostDate;
+const runtimeStartedAt = runtimeSince
+	? new Date(`${runtimeSince}T00:00:00`).getTime()
+	: null;
+const nowTime = Date.now();
+const runtimeElapsed =
+	runtimeStartedAt && !Number.isNaN(runtimeStartedAt)
+		? Math.max(0, nowTime - runtimeStartedAt)
+		: null;
+const runtimeLabel =
+	runtimeElapsed === null
+		? null
+		: fillTemplate(i18n(I18nKey.mmzFooterRuntime), {
+				days: Math.floor(runtimeElapsed / 86400000),
+				hours: Math.floor(runtimeElapsed / 3600000) % 24,
+				minutes: Math.floor(runtimeElapsed / 60000) % 60,
+				seconds: Math.floor(runtimeElapsed / 1000) % 60,
+			});
+
+/* 最近更新距今天数：来自全站最新文章日期 */
+const lastUpdatedAt = data.latest?.date
+	? new Date(`${data.latest.date}T00:00:00`).getTime()
+	: null;
+const lastUpdatedDays =
+	lastUpdatedAt && !Number.isNaN(lastUpdatedAt)
+		? Math.max(0, Math.floor((nowTime - lastUpdatedAt) / 86400000))
+		: null;
+const lastUpdatedLabel =
+	lastUpdatedDays === null
+		? null
+		: fillTemplate(i18n(I18nKey.mmzFooterUpdated), { days: lastUpdatedDays });
+
+const creditLabel = fillTemplate(i18n(I18nKey.mmzFooterCredit), {
+	year: new Date().getFullYear(),
+	name: footerBrand,
+});
+
+/* 归属行：框架 / 主题与版本号同一行，分隔符与版权行保持一致的排版节奏 */
+const poweredLabel = fillTemplate(i18n(I18nKey.mmzFooterPowered), {
+	framework: "Astro",
+	theme: "Shirone",
+});
+const versionLabel = `${i18n(I18nKey.siteInfoVersion)} ${packageMetadata.version}`;
+
+/* 相册卡片堆叠：对齐参考组件 hero-card-stack 的扇形——中间卡片最大且压在最上层，
+   两侧逐级缩小、外扩并递增旋转；几何量在这里算好，模板只负责写自定义属性 */
+const album = data.album;
+const albumHref = album ? url(`albums/${album.id}/`) : "";
+const albumCards = album
+	? album.photos.map((photo, index) => {
+			const center = (album.photos.length - 1) / 2;
+			const offset = index - center;
+			/* 位移用百分比（相对卡片自身宽高），卡片随视口缩放时扇形比例不变 */
+			return {
+				src: photo.src,
+				x: `${(offset * 58).toFixed(1)}%`,
+				y: `${(Math.abs(offset) * 3.6).toFixed(1)}%`,
+				rotate: `${(offset * 4.67).toFixed(1)}deg`,
+				scale: (1 - Math.abs(offset) * 0.05).toFixed(2),
+				z: Math.round(20 - Math.abs(offset) * 2),
+			};
+		})
+	: [];
+const albumStackLabel = album
+	? fillTemplate(i18n(I18nKey.mmzAlbumStackAria), { title: album.title })
+	: "";
+
+const headlineMessages = [
+	i18n(I18nKey.mmzBlindsMessage1),
+	i18n(I18nKey.mmzBlindsMessage2),
+	i18n(I18nKey.mmzBlindsMessage3),
+	i18n(I18nKey.mmzBlindsMessage4),
+];
+
+/* 五幕：第 1 幕由固定舞台背景合成，后四幕用参考插画 + 站内文章标题/日期/摘要 */
+const scenePosts = [...data.pinned, ...freshPosts].slice(0, 4);
+const blindScenes = Array.from({ length: 5 }, (_, index) => {
+	const post = scenePosts[index - 1];
+	const fallback = index === 0 ? i18n(I18nKey.mmzBlindsHeadline) : "";
+	return {
+		index,
+		composite: index === 0,
+		image: index === 0 ? blindsRevealSrc : blindSceneSrcs[index - 1],
+		alt: post?.title ?? fallback,
+		title:
+			post?.title ?? (index === 0 ? fallback : headlineMessages[index - 1]),
+		date: post ? post.date.replaceAll("-", "/") : "",
+		description: post?.description ?? post?.title ?? "",
+	};
+});
+
+/* 气泡池：文章摘要/标题去重；不足时用祝福语兜底；带封面的条目附一张图 */
+const bubbleSource = [...data.pinned, ...data.recent].filter(
+	(post, index, list) =>
+		list.findIndex((item) => item.url === post.url) === index,
+);
+const bubbleSeen = new Set<string>();
+const bubbleMessages: string[] = [];
+for (const post of bubbleSource) {
+	const text = bubbleLine(post.description ?? post.title, 24);
+	if (!text || bubbleSeen.has(text)) continue;
+	bubbleSeen.add(text);
+	bubbleMessages.push(text);
+}
+while (bubbleMessages.length < 12) {
+	bubbleMessages.push(headlineMessages[bubbleMessages.length % 4]);
+}
+const bubbleImages = bubbleSource
+	.map((post) => post.cover?.src)
+	.filter((src): src is string => Boolean(src))
+	.slice(0, 4);
+
+/* 角色台词：优先摘要，其次标题；空站点回退副标题/自述，绝不硬编码 */
+const dialogueSeen = new Set<string>();
+const dialogueLines = [
+	...bubbleSource.map((post) => post.description ?? post.title),
+	subtitle,
+	bio ?? "",
+]
+	.map((text) => bubbleLine(text, 48))
+	.filter((text) => {
+		if (!text || dialogueSeen.has(text)) return false;
+		dialogueSeen.add(text);
+		return true;
+	})
+	.slice(0, 8);
+
+const blindsRuntime = {
+	scenes: {
+		scrollDistance: 3400,
+		cycleDuration: 2.4,
+		sceneCount: blindScenes.length,
+		bubbleMessages,
+		bubbleImages,
+	},
+};
+
+const compact = (value: number) =>
+	new Intl.NumberFormat("en-US", {
+		notation: "compact",
+		maximumFractionDigits: 1,
+	}).format(value);
 ---
 
-<div class="mmz-home">
-	<section class="mmz-hero" aria-labelledby="mmz-home-title">
-		<span class="mmz-hero__ghost" aria-hidden="true">{initial}</span>
-		<h1 id="mmz-home-title" class="mmz-hero__title">{name}</h1>
-		<p class="mmz-hero__subtitle">[{siteConfig.subtitle}]</p>
-		<p class="mmz-hero__bio">{profileConfig.bio}</p>
-		{profileConfig.links.length > 0 && (
-			<ul class="mmz-hero__links" aria-label={i18n(I18nKey.aboutSocialAria)}>
-				{profileConfig.links.map((link) => (
-					<li>
-						<a
-							class="mmz-hero__link"
-							href={link.url}
-							target="_blank"
-							rel="me noopener"
-							title={link.name}
-							aria-label={link.name}
-						>
-							<Icon name={link.icon} />
-						</a>
-					</li>
+<div class="mmz-home" data-mmz-home>
+
+	{/* 顶部左上角个人信息卡：悬停 / 聚焦站名时展开，离开后延迟收起。
+	    固定层，挂在根节点而非影像层内，避免被 pin 段的 transform 影响。 */}
+	<div
+		class="mmz-profile"
+		data-mmz-profile
+		data-open="false"
+		aria-hidden="true"
+		aria-label={i18n(I18nKey.mmzProfileAria)}
+	>
+		<div class="mmz-profile__card" data-mmz-profile-card>
+			<div class="mmz-profile__banner">
+				<img
+					src={blindsRevealSrc}
+					alt=""
+					loading="lazy"
+					decoding="async"
+				/>
+			</div>
+			<div class="mmz-profile__identity">
+				{avatarUrl && (
+					<img
+						class="mmz-profile__avatar"
+						src={avatarUrl}
+						alt={name}
+						width="96"
+						height="96"
+						loading="lazy"
+						decoding="async"
+					/>
+				)}
+				<p class="mmz-profile__name">{name}</p>
+				{occupation && <p class="mmz-profile__role">{occupation}</p>}
+			</div>
+			{primaryLinks.length > 0 && (
+				<ul class="mmz-profile__social" aria-label={i18n(I18nKey.aboutSocialAria)}>
+					{primaryLinks.map((link) => (
+						<li>
+							<a
+								href={link.url}
+								title={link.name}
+								aria-label={link.name}
+								target={isExternalHref(link.url) ? "_blank" : undefined}
+								rel={isExternalHref(link.url) ? "me noopener" : "me"}
+							>
+								<Icon name={link.icon} />
+							</a>
+						</li>
+					))}
+				</ul>
+			)}
+			<div
+				class="mmz-profile__heatmap"
+				role="img"
+				aria-label={i18n(I18nKey.mmzProfileHeatmapAria)}
+			>
+				{heatmapMonths.map((month) => (
+					<div class="mmz-profile__month">
+						<span class="mmz-profile__month-label">{month.label}</span>
+						<div class="mmz-profile__cells">
+							{month.cells.map((level) => (
+								<span class="mmz-profile__cell" data-level={level} />
+							))}
+						</div>
+					</div>
 				))}
-			</ul>
-		)}
+			</div>
+			{otherSiteLinks.length > 0 && (
+				<div class="mmz-profile__sites">
+					<span class="mmz-profile__sites-label">
+						{i18n(I18nKey.mmzOtherSites)}
+					</span>
+					<ul class="mmz-profile__sites-list">
+						{otherSiteLinks.map((link) => (
+							<li>
+								<a
+									href={link.url}
+									title={link.name}
+									aria-label={link.name}
+									target={isExternalHref(link.url) ? "_blank" : undefined}
+									rel={isExternalHref(link.url) ? "me noopener" : "me"}
+								>
+									<Icon name={link.icon} />
+								</a>
+							</li>
+						))}
+					</ul>
+					<span class="mmz-profile__sites-more" aria-hidden="true">
+						<Icon name="material-symbols:keyboard-arrow-down-rounded" />
+					</span>
+				</div>
+			)}
+		</div>
+	</div>
+
+	<section
+		class="mmz-blinds"
+		id="mmz-blinds"
+		data-mmz-blinds
+		aria-label={i18n(I18nKey.mmzBlindsScenesAria)}
+	>
+		<div class="mmz-blinds__stage" data-blinds-stage aria-hidden="true">
+			<img
+				class="mmz-blinds__background"
+				src={blindsRevealSrc}
+				alt=""
+				decoding="async"
+				data-blinds-background
+			/>
+
+			<!-- 全屏背景收缩成首幕画面的过渡层：clip-path 收窗 + 图片等比 scale -->
+			<div class="mmz-blinds__portal" data-scenes-portal>
+				<img
+					class="mmz-blinds__portal-image"
+					src={blindsRevealSrc}
+					alt=""
+					decoding="async"
+					data-scenes-portal-image
+				/>
+			</div>
+		</div>
+
+		{/* 首屏文字层：中央职业 / 大标题 / 签名，右缘竖排列与底部对话卡。
+		    固定在视口上，只随 reveal 阶段显示；进入收缩段后整层淡出。
+		    颜色与描边是图片叠加的可读性例外，由 CSS 中的注释标注。 */}
+		<div class="mmz-blinds__hero" data-blinds-hero data-visible="true">
+			<span class="mmz-blinds__hero-line" data-hero-line="left" aria-hidden="true" />
+			<span class="mmz-blinds__hero-line" data-hero-line="right" aria-hidden="true" />
+
+			<div class="mmz-blinds__hero-center">
+				{occupation && (
+					<p class="mmz-blinds__hero-occupation">{occupation}</p>
+				)}
+				<p class="mmz-blinds__hero-name">{displayName}</p>
+				{bio && <p class="mmz-blinds__hero-bio">{bio}</p>}
+			</div>
+
+			{hasHeroAside && (
+				<aside class="mmz-blinds__hero-side">
+					{hero?.pillText && (
+						<div class="mmz-blinds__hero-pill">{hero.pillText}</div>
+					)}
+					{(hero?.verticalTitle || hero?.verticalCreative) && (
+						<div class="mmz-blinds__hero-vertical">
+							{hero?.verticalTitle && (
+								<span class="mmz-blinds__hero-v-title">
+									{hero.verticalTitle}
+								</span>
+							)}
+							{hero?.verticalName && (
+								<span class="mmz-blinds__hero-v-sub">{hero.verticalName}</span>
+							)}
+							{hero?.verticalCreative && (
+								<>
+									<span class="mmz-blinds__hero-diamond" aria-hidden="true">
+										✦
+									</span>
+									<span class="mmz-blinds__hero-v-sub">
+										{hero.verticalCreative}
+									</span>
+								</>
+							)}
+						</div>
+					)}
+					{hero?.footerText && (
+						<div class="mmz-blinds__hero-footer">
+							<span class="mmz-blinds__hero-footer-line" aria-hidden="true" />
+							<p class="mmz-blinds__hero-micro">{hero.footerText}</p>
+						</div>
+					)}
+				</aside>
+			)}
+
+			{(hero?.speechChinese || hero?.speechEnglish) && (
+				<div class="mmz-blinds__hero-speech">
+					{hero?.speechChinese && (
+						<p class="mmz-blinds__hero-speech-zh">{hero.speechChinese}</p>
+					)}
+					{hero?.speechEnglish && (
+						<p class="mmz-blinds__hero-speech-en">{hero.speechEnglish}</p>
+					)}
+				</div>
+			)}
+		</div>
+
+		<section
+			class="mmz-blinds__reveal"
+			data-blinds-reveal
+			aria-label={i18n(I18nKey.mmzBlindsRevealAria)}
+		>
+			<div class="mmz-blinds__reveal-viewport"></div>
+		</section>
+
+		<section
+			class="mmz-blinds__scenes"
+			data-blinds-scenes
+			aria-label={i18n(I18nKey.mmzBlindsScenesAria)}
+		>
+			<div class="mmz-blinds__scenes-viewport" data-scenes-viewport>
+				<div
+					class="mmz-blinds__cycle"
+					style="--mmz-cycle-period:224px"
+					aria-hidden="true"
+					data-scenes-cycle
+				>
+					<div
+						class="mmz-blinds__cycle-track"
+						data-scenes-cycle-track
+					></div>
+				</div>
+
+				<div
+					class="mmz-blinds__bubbles"
+					aria-hidden="true"
+					data-scenes-bubbles
+				>
+					{
+						Array.from({ length: 12 }).map(() => (
+							<span class="mmz-blind-bubble" data-scene-bubble>
+								<span class="mmz-blind-bubble__body" data-scene-bubble-body>
+									<span
+										class="mmz-blind-bubble__text"
+										data-scene-bubble-text
+									/>
+									<img
+										class="mmz-blind-bubble__image"
+										data-scene-bubble-image
+										alt=""
+										loading="lazy"
+										decoding="async"
+									/>
+								</span>
+							</span>
+						))
+					}
+				</div>
+
+				<div class="mmz-blinds__track" data-scenes-track>
+					{
+						blindScenes.map((item) => (
+							<BlindsScene
+								index={item.index}
+								item={item}
+								composite={item.composite}
+							/>
+						))
+					}
+				</div>
+
+				<div class="mmz-blinds__stands" data-scenes-stands aria-hidden="true">
+					<div class="mmz-blinds__stands-track" data-scenes-stands-track>
+						{
+							standSrcs.map((src) => (
+								<div class="mmz-blinds__stand" data-scenes-stand>
+									<img
+										class="mmz-blinds__stand-image"
+										src={src}
+										alt=""
+										loading="lazy"
+										decoding="async"
+										draggable="false"
+									/>
+								</div>
+							))
+						}
+					</div>
+				</div>
+			</div>
+		</section>
+
+		{/* 终幕放大过渡层：最后一幕图框向满屏扩张，与收缩过渡层同一套几何、方向相反。
+		    恒为 position: fixed，必须挂在根层级——被 pin 的场景 section 残留
+		    transform 会让 fixed 退化成相对 section 定位。 */}
+		<div class="mmz-blinds__finale" data-finale-portal aria-hidden="true">
+			<img
+				class="mmz-blinds__finale-image"
+				src={blindSceneSrcs[blindSceneSrcs.length - 1]}
+				alt=""
+				loading="lazy"
+				decoding="async"
+				data-finale-image
+			/>
+		</div>
+
+		<script
+			type="application/json"
+			data-blinds-config
+			is:inline
+			set:html={JSON.stringify(blindsRuntime)}
+		/>
 	</section>
 
-	<section class="mmz-data" aria-label={i18n(I18nKey.stats)}>
-		{cards.map((card) => (
-			<a class="mmz-data__card" href={card.href}>
-				<Icon name={card.icon} class="mmz-data__icon" />
-				<span class="mmz-data__value">{card.value}</span>
-				<span class="mmz-data__label">{card.label}</span>
-				<Icon
-					name="material-symbols:arrow-outward-rounded"
-					class="mmz-data__arrow"
-				/>
-			</a>
-		))}
+	{/* 终幕衔接占位：把内容区压到一屏之外，让终幕文字显影期间屏幕上只有定格壁纸。
+	    高度留给控制器按实测校准，避免硬编码视口单位。 */}
+	<div class="mmz-finale-spacer" data-finale-spacer aria-hidden="true"></div>
+
+	{/* 终幕文字层：独立 fixed 层，位于内容区之上。
+	    「番茄主理人」信息组与「快速带你前往」同层同速上滑，
+	    位置由控制器按内容区顶缘实测写入。 */}
+	{(finaleTitle || finaleSubtitle) && (
+		<div class="mmz-finale-copy" data-finale-copy-layer aria-hidden="true">
+			<div class="mmz-finale-copy__inner" data-finale-copy-inner>
+				{finaleTitle && (
+					<h2 class="mmz-finale-copy__title">{finaleTitle}</h2>
+				)}
+				{finaleSubtitle && (
+					<p class="mmz-finale-copy__subtitle">{finaleSubtitle}</p>
+				)}
+			</div>
+		</div>
+	)}
+
+	{/* 内容区：终幕退场后从下方上滑。整层不带背景板，文字直接浮在
+	    终幕图逐渐模糊漂白后的页面上（Serenity 式退场）。 */}
+	<section
+		class="mmz-afterglow"
+		data-mmz-afterglow
+		aria-label={i18n(I18nKey.mmzQuickAccess)}
+	>
+		<div class="mmz-afterglow__inner">
+			<div class="mmz-afterglow__compass">
+				<header class="mmz-afterglow__head" data-afterglow-compass>
+					<h2 class="mmz-afterglow__title">
+						{i18n(I18nKey.mmzQuickAccess)}
+					</h2>
+					<p class="mmz-afterglow__subtitle">
+						{i18n(I18nKey.mmzQuickAccessSubtitle)}
+					</p>
+				</header>
+				<nav
+					class="mmz-afterglow__nav"
+					aria-label={i18n(I18nKey.mmzQuickAccess)}
+				>
+					{
+						quickLinks.map((link) => (
+							<a
+								class="mmz-afterglow__link"
+								href={url(link.url)}
+								target={link.external ? "_blank" : undefined}
+								rel={link.external ? "noreferrer noopener" : undefined}
+							>
+								{link.icon && <Icon name={link.icon} />}
+								<span>{link.name}</span>
+							</a>
+						))
+					}
+				</nav>
+			</div>
+
+			{
+				noticeText && (
+					<div class="mmz-afterglow__notice">
+						<Icon
+							name="material-symbols:campaign-outline-rounded"
+							class="mmz-afterglow__notice-icon"
+						/>
+						<p class="mmz-afterglow__notice-text">{noticeText}</p>
+						{noticeLink && (
+							<a
+								class="mmz-afterglow__notice-link"
+								href={noticeLink.url}
+								target={noticeLink.external ? "_blank" : undefined}
+								rel={noticeLink.external ? "noreferrer noopener" : undefined}
+							>
+								{noticeLink.text}
+							</a>
+						)}
+					</div>
+				)
+			}
+
+			<div class="mmz-afterglow__columns">
+				<section class="mmz-afterglow__col">
+					<header class="mmz-afterglow__col-head">
+						<h2 class="mmz-afterglow__col-title">
+							{i18n(I18nKey.mmzHomeRecent)}
+						</h2>
+						<a class="mmz-afterglow__more" href={archiveHref}>
+							<span>{i18n(I18nKey.more)}</span>
+							<Icon name="material-symbols:arrow-forward-rounded" />
+						</a>
+					</header>
+					<div class="mmz-afterglow__panel">
+						{afterglowPosts.length > 0 ? (
+							<ul class="mmz-afterglow__list">
+								{afterglowPosts.map((post, index) => (
+									<li class="mmz-afterglow__post">
+										<a class="mmz-afterglow__post-link" href={post.url}>
+											<span class="mmz-afterglow__index">
+												{(index + 1).toString().padStart(2, "0")}
+											</span>
+											{post.cover?.src && (
+												<img
+													class="mmz-afterglow__thumb"
+													src={post.cover.src}
+													alt=""
+													loading="lazy"
+													decoding="async"
+												/>
+											)}
+											<span class="mmz-afterglow__post-body">
+												<span class="mmz-afterglow__post-title">{post.title}</span>
+												<span class="mmz-afterglow__post-meta">
+													<time datetime={post.date}>{post.date}</time>
+													{post.description && (
+														<span class="mmz-afterglow__post-desc">
+															{post.description}
+														</span>
+													)}
+												</span>
+											</span>
+											<span class="mmz-afterglow__category">
+												{post.category ?? i18n(I18nKey.uncategorized)}
+											</span>
+										</a>
+									</li>
+								))}
+							</ul>
+						) : (
+							<p class="mmz-card__empty">{i18n(I18nKey.noData)}</p>
+						)}
+					</div>
+				</section>
+
+				<section class="mmz-afterglow__col">
+					<header class="mmz-afterglow__col-head">
+						<h2 class="mmz-afterglow__col-title">
+							{i18n(I18nKey.mmzHomeMoments)}
+						</h2>
+						<a class="mmz-afterglow__more" href={momentsHref}>
+							<span>{i18n(I18nKey.more)}</span>
+							<Icon name="material-symbols:arrow-forward-rounded" />
+						</a>
+					</header>
+					<div class="mmz-afterglow__panel">
+						{momentItems.length > 0 ? (
+							<ul class="mmz-afterglow__timeline">
+								{momentItems.map((moment) => (
+									<li
+										class="mmz-afterglow__moment"
+										data-pinned={moment.pinned ? "true" : undefined}
+									>
+										<span class="mmz-afterglow__dot" aria-hidden="true" />
+										<span class="mmz-afterglow__moment-text">
+											{moment.excerpt}
+										</span>
+										<time class="mmz-afterglow__moment-date" datetime={moment.iso}>
+											{moment.date}
+										</time>
+									</li>
+								))}
+							</ul>
+						) : (
+							<p class="mmz-card__empty">{i18n(I18nKey.noData)}</p>
+						)}
+					</div>
+				</section>
+			</div>
+
+			{/* 相册卡片堆叠：扇形展开的照片墙，悬停抬起当前卡片；整块是入口预览，
+			    真正的导航由「查看相册」承担，卡片本身不带链接 */}
+			{album && (
+				<section class="mmz-album" aria-labelledby="mmz-album-title">
+					<header class="mmz-album__head">
+						<div class="mmz-album__intro">
+							<p class="mmz-album__eyebrow">
+								{i18n(I18nKey.mmzAlbumSection)}
+							</p>
+							<h2 id="mmz-album-title" class="mmz-album__title">
+								{album.title}
+							</h2>
+							{album.description && (
+								<p class="mmz-album__desc">{album.description}</p>
+							)}
+						</div>
+						<a class="mmz-album__more" href={albumHref}>
+							{i18n(I18nKey.mmzAlbumView)}
+							<Icon name="material-symbols:arrow-outward-rounded" />
+						</a>
+					</header>
+					<div
+						class="mmz-album__stack"
+						role="group"
+						aria-label={albumStackLabel}
+						data-mmz-album-stack
+					>
+						{albumCards.map((card, index) => (
+							<button
+								type="button"
+								class="mmz-album__card"
+								data-album-card
+								data-index={index}
+								aria-label={`${album?.title} ${index + 1}`}
+								style={`--stack-x:${card.x};--stack-y:${card.y};--stack-r:${card.rotate};--stack-s:${card.scale};--stack-z:${card.z};`}
+							>
+								<img
+									src={card.src}
+									alt=""
+									loading="lazy"
+									decoding="async"
+									draggable="false"
+								/>
+								<span class="mmz-album__caption">{album?.title}</span>
+							</button>
+						))}
+					</div>
+				</section>
+			)}
+		</div>
 	</section>
+	{/* 左下角角色对话：sticky 贴视口底边；正常流位置在影像层之后，于是从首屏一路浮到影像层结束，再随页面滚走 */}
+	<aside
+		class="mmz-dialogue"
+		aria-label={i18n(I18nKey.characterDialogue)}
+		data-mmz-dialogue
+		data-dialogue-sound={dialogueSoundSrc}
+		data-scene-visible="false"
+	>
+		<div class="mmz-dialogue__anchor" data-dialogue-anchor>
+			<p
+				class="mmz-dialogue__bubble"
+				data-dialogue-bubble
+				data-open="false"
+				aria-live="polite"
+			/>
+			<figure class="mmz-dialogue__sticker" data-mmz-sticker>
+				<img
+					class="mmz-dialogue__sticker-image"
+					src={dollSrc}
+					alt=""
+					width="1254"
+					height="1254"
+					loading="lazy"
+					decoding="async"
+				/>
+			</figure>
+			<button
+				class="mmz-dialogue__trigger"
+				type="button"
+				aria-label={i18n(I18nKey.dialogueNext)}
+				title={i18n(I18nKey.dialogueNext)}
+				data-dialogue-trigger
+			></button>
+		</div>
+		<button
+			class="mmz-backtop"
+			type="button"
+			data-mmz-backtop
+			aria-label={i18n(I18nKey.backToTop)}
+		>
+			<span aria-hidden="true">↑</span>
+		</button>
+		<script
+			type="application/json"
+			data-dialogue-lines
+			is:inline
+			set:html={JSON.stringify(dialogueLines)}
+		/>
+	</aside>
+
+	<div class="mmz-mobile">
+		<section class="mmz-mobile-hero" aria-labelledby="mmz-mobile-title">
+			<div class="mmz-mobile-hero__main">
+				{avatarUrl && (
+					<img
+						class="mmz-mobile-avatar"
+						src={avatarUrl}
+						alt={name}
+						width="112"
+						height="112"
+						loading="eager"
+						decoding="async"
+					/>
+				)}
+				<h1 id="mmz-mobile-title" class="mmz-mobile-name">{name}</h1>
+				<p class="mmz-mobile-role">{subtitle}</p>
+				{bio && <p class="mmz-mobile-bio">{bio}</p>}
+			</div>
+			<div class="mmz-mobile-hero__foot">
+				<div class="mmz-mobile-stats">
+					<a class="mmz-mobile-stat" href={url("/archive/")}>
+						<span class="mmz-mobile-stat__value">{data.posts}</span>
+						<span class="mmz-mobile-stat__label">
+							{i18n(I18nKey.statsPosts)}
+						</span>
+					</a>
+					<span class="mmz-mobile-stats__sep" aria-hidden="true">·</span>
+					<span class="mmz-mobile-stat">
+						<span class="mmz-mobile-stat__value">{compact(data.words)}</span>
+						<span class="mmz-mobile-stat__label">
+							{i18n(I18nKey.statsWords)}
+						</span>
+					</span>
+					<span class="mmz-mobile-stats__sep" aria-hidden="true">·</span>
+					<span class="mmz-mobile-stat">
+						<span class="mmz-mobile-stat__value">{data.categories}</span>
+						<span class="mmz-mobile-stat__label">
+							{i18n(I18nKey.categories)}
+						</span>
+					</span>
+				</div>
+				{links.length > 0 && (
+					<ul class="mmz-mobile-social" aria-label={i18n(I18nKey.aboutSocialAria)}>
+						{links.map((link) => (
+							<li>
+								<a
+									class="mmz-mobile-social__link"
+									href={link.url}
+									title={link.name}
+									aria-label={link.name}
+									target="_blank"
+									rel="me noopener"
+								>
+									<Icon name={link.icon} />
+								</a>
+							</li>
+						))}
+					</ul>
+				)}
+			</div>
+		</section>
+
+		<section class="mmz-mobile-content">
+			<header class="mmz-mobile-head">
+				<h2 class="mmz-mobile-head__row">
+					<span class="mmz-mobile-head__index" aria-hidden="true">01</span>
+					<span class="mmz-mobile-head__label">{i18n(I18nKey.pinned)}</span>
+				</h2>
+				<span class="mmz-mobile-head__en" aria-hidden="true">
+					{i18n(I18nKey.homeMobileFeatured)}
+				</span>
+				<span class="mmz-mobile-head__rule" aria-hidden="true" />
+			</header>
+
+			{mobileDeckItems.length > 0 ? (
+				<div class="mmz-mobile-deck">
+					{mobileDeckItems.map((post, index) => (
+						<article
+							class="mmz-mobile-deck__card"
+							style={`--deck-index:${index}`}
+						>
+							<div class="mmz-mobile-deck__inner">
+								<p class="mmz-mobile-deck__meta">
+									{post.category ?? i18n(I18nKey.uncategorized)}
+									{" · "}
+									{post.date}
+								</p>
+								<a
+									class="mmz-mobile-deck__link"
+									href={post.url}
+									tabindex={index === 0 ? 0 : -1}
+								>
+									{post.title}
+								</a>
+								{post.description && (
+									<p class="mmz-mobile-deck__desc">{post.description}</p>
+								)}
+							</div>
+						</article>
+					))}
+				</div>
+			) : (
+				<p class="mmz-card__empty">{i18n(I18nKey.noData)}</p>
+			)}
+
+			<header class="mmz-mobile-head">
+				<h2 class="mmz-mobile-head__row">
+					<span class="mmz-mobile-head__index" aria-hidden="true">02</span>
+					<span class="mmz-mobile-head__label">{i18n(I18nKey.recentPosts)}</span>
+				</h2>
+				<span class="mmz-mobile-head__en" aria-hidden="true">
+					{i18n(I18nKey.homeMobileLatest)}
+				</span>
+				<span class="mmz-mobile-head__rule" aria-hidden="true" />
+			</header>
+
+			{timeline.length > 0 ? (
+				<ul class="mmz-mobile-timeline">
+					{timeline.map((post) => (
+						<li class="mmz-mobile-timeline__item">
+							<a class="mmz-mobile-timeline__title" href={post.url}>
+								{post.title}
+							</a>
+							<span class="mmz-mobile-timeline__category">
+								{post.category ?? i18n(I18nKey.uncategorized)}
+							</span>
+							<span class="mmz-mobile-timeline__date">{post.date}</span>
+						</li>
+					))}
+				</ul>
+			) : (
+				<p class="mmz-card__empty">{i18n(I18nKey.noData)}</p>
+			)}
+		</section>
+	</div>
+
+	{/* 首页页脚：品牌/标语 + 常用联系方式 + 页脚链接 + 版权/备案 + 运行时长。
+	    备案与自定义链接缺省时不渲染对应行；运行时长由脚本每秒刷新。 */}
+	<footer class="mmz-footer">
+		<div class="mmz-footer__top">
+			<div class="mmz-footer__brand">
+				{footerLogo ? (
+					<img
+						class="mmz-footer__logo-image"
+						src={footerLogo}
+						alt={footerBrand}
+						loading="lazy"
+						decoding="async"
+					/>
+				) : (
+					<p class="mmz-footer__logo">{footerBrand}</p>
+				)}
+				{footerTagline && (
+					<p class="mmz-footer__tagline">{footerTagline}</p>
+				)}
+			</div>
+
+			<div class="mmz-footer__contact">
+				<h2 class="mmz-footer__contact-title">
+					{i18n(I18nKey.mmzFooterContact)}
+				</h2>
+				{primaryLinks.length > 0 && (
+					<ul
+						class="mmz-footer__contact-list"
+						aria-label={i18n(I18nKey.mmzFooterContact)}
+					>
+						{primaryLinks.map((link) => (
+							<li>
+								<a
+									class="mmz-footer__contact-link"
+									href={link.url}
+									title={link.name}
+									aria-label={link.name}
+									target={isExternalHref(link.url) ? "_blank" : undefined}
+									rel={isExternalHref(link.url) ? "me noopener" : "me"}
+								>
+									<Icon name={link.icon} />
+								</a>
+							</li>
+						))}
+					</ul>
+				)}
+				{footerLinks.length > 0 && (
+					<nav
+						class="mmz-footer__links"
+						aria-label={i18n(I18nKey.mmzFooterLinksAria)}
+					>
+						{footerLinks.map((link) => (
+							<a
+								href={link.href}
+								target={link.external ? "_blank" : undefined}
+								rel={link.external ? "noreferrer noopener" : undefined}
+							>
+								{link.label}
+							</a>
+						))}
+					</nav>
+				)}
+			</div>
+		</div>
+
+		<div class="mmz-footer__rule" aria-hidden="true"></div>
+
+		<div class="mmz-footer__bottom">
+			<div class="mmz-footer__legal">
+				<p class="mmz-footer__credit">{creditLabel}</p>
+				{(footerOptions?.icp || footerOptions?.police) && (
+					<p class="mmz-footer__filing">
+						{footerOptions?.icp &&
+							(footerOptions.icp.url ? (
+								<a
+									href={footerOptions.icp.url}
+									target="_blank"
+									rel="noreferrer noopener"
+								>
+									{footerOptions.icp.label}
+								</a>
+							) : (
+								<span>{footerOptions.icp.label}</span>
+							))}
+						{footerOptions?.icp && footerOptions?.police && (
+							<span class="mmz-footer__filing-sep" aria-hidden="true">
+								/
+							</span>
+						)}
+						{footerOptions?.police &&
+							(footerOptions.police.url ? (
+								<a
+									href={footerOptions.police.url}
+									target="_blank"
+									rel="noreferrer noopener"
+								>
+									<img
+										class="mmz-footer__filing-badge"
+										src="/images/ghs.png"
+										alt=""
+										width="14"
+										height="14"
+										loading="lazy"
+									/>
+									{footerOptions.police.label}
+								</a>
+							) : (
+								<span>
+									<img
+										class="mmz-footer__filing-badge"
+										src="/images/ghs.png"
+										alt=""
+										width="14"
+										height="14"
+										loading="lazy"
+									/>
+									{footerOptions.police.label}
+								</span>
+							))}
+					</p>
+				)}
+			</div>
+
+			<div class="mmz-footer__meta">
+				{runtimeLabel && runtimeSince && (
+					<p
+						class="mmz-footer__meta-row"
+						data-mmz-runtime
+						data-template={i18n(I18nKey.mmzFooterRuntime)}
+						data-since={`${runtimeSince}T00:00:00`}
+					>
+						<Icon name="material-symbols:schedule" />
+						<span data-mmz-runtime-text>{runtimeLabel}</span>
+					</p>
+				)}
+				{lastUpdatedLabel && (
+					<p class="mmz-footer__meta-row">
+						<Icon name="material-symbols:bolt" />
+						<span>{lastUpdatedLabel}</span>
+					</p>
+				)}
+				<p class="mmz-footer__meta-row">
+					<Icon name="material-symbols:deployed-code-outline" />
+					<span>{poweredLabel}</span>
+					<span class="mmz-footer__filing-sep" aria-hidden="true">/</span>
+					<span>{versionLabel}</span>
+				</p>
+			</div>
+		</div>
+	</footer>
 </div>
 
-<style>
-	/* 门户容器：与内容列保持同一留白节奏 */
-	.mmz-home {
-		display: flex;
-		flex-direction: column;
-		gap: var(--m3e-space-4);
-		padding-block: var(--m3e-space-6);
+<script>
+	import { mountHomeBlinds } from "../home-blinds";
+	import { mountHomeDialogue } from "../home-dialogue";
+
+	/**
+	 * 首页只剩影像层：全屏明信片收缩成首幕、横向五幕推进由 mountHomeBlinds 驱动；
+	 * 左下角角色对话与返回顶部按钮由 mountHomeDialogue 接管。
+	 * 移动端与减弱动效由 CSS 整层折叠为静态回退，这里不挂滚动逻辑。
+	 */
+	let teardown: (() => void) | null = null;
+
+	/**
+	 * 顶部个人信息卡：站名（持久壳里的标题链接）是触发器，悬停或聚焦时展开；
+	 * 指针从标题移到卡片途中会短暂离开，用延迟收起避免闪断。
+	 */
+	function mountProfileCard(home: HTMLElement): () => void {
+		const card = home.querySelector<HTMLElement>("[data-mmz-profile]");
+		/* 顶栏站名链接是 #navbar 内唯一带 .group 的锚点（导航项用 top-app-bar__nav-link） */
+		const trigger = document.querySelector<HTMLElement>("#navbar a.group");
+		if (!card || !trigger) return () => {};
+
+		const controller = new AbortController();
+		const { signal } = controller;
+		let closeTimer = 0;
+
+		const open = () => {
+			window.clearTimeout(closeTimer);
+			card.dataset.open = "true";
+			card.setAttribute("aria-hidden", "false");
+			trigger.setAttribute("aria-expanded", "true");
+		};
+		const close = () => {
+			window.clearTimeout(closeTimer);
+			card.dataset.open = "false";
+			card.setAttribute("aria-hidden", "true");
+			trigger.setAttribute("aria-expanded", "false");
+		};
+		const scheduleClose = () => {
+			window.clearTimeout(closeTimer);
+			closeTimer = window.setTimeout(close, 200);
+		};
+
+		trigger.setAttribute("aria-haspopup", "true");
+		trigger.setAttribute("aria-expanded", "false");
+		trigger.addEventListener("mouseenter", open, { signal });
+		trigger.addEventListener("focus", open, { signal });
+		trigger.addEventListener("mouseleave", scheduleClose, { signal });
+		trigger.addEventListener(
+			"focusout",
+			(event) => {
+				const next = event.relatedTarget;
+				if (next instanceof Node && card.contains(next)) return;
+				scheduleClose();
+			},
+			{ signal },
+		);
+		card.addEventListener("mouseenter", open, { signal });
+		card.addEventListener("mouseleave", scheduleClose, { signal });
+		card.addEventListener("focusin", open, { signal });
+		card.addEventListener(
+			"focusout",
+			(event) => {
+				const next = event.relatedTarget;
+				if (next instanceof Node && card.contains(next)) return;
+				scheduleClose();
+			},
+			{ signal },
+		);
+		document.addEventListener(
+			"keydown",
+			(event) => {
+				if (event.key === "Escape") close();
+			},
+			{ signal },
+		);
+
+		return () => {
+			window.clearTimeout(closeTimer);
+			controller.abort();
+			trigger.removeAttribute("aria-haspopup");
+			trigger.removeAttribute("aria-expanded");
+		};
 	}
 
-	/* 字标 Hero：细描边 + 极淡网格底纹，零饱和度由 mmz 皮肤令牌统一提供 */
-	.mmz-hero {
+	/**
+	 * 相册卡片堆叠的点击视图：点任一卡片后该卡片放大成焦点图，
+	 * 其余卡片缩成底部缩略图条；再次点击焦点图或按 Esc 回到扇形。
+	 */
+	function mountAlbumStack(home: HTMLElement): () => void {
+		const stack = home.querySelector<HTMLElement>("[data-mmz-album-stack]");
+		const cards = stack
+			? Array.from(stack.querySelectorAll<HTMLElement>("[data-album-card]"))
+			: [];
+		if (!stack || cards.length < 2) return () => {};
+
+		const controller = new AbortController();
+		const { signal } = controller;
+		/* 扇形几何在模板里以百分比写进 style，进入选中态前先存一份原始值 */
+		for (const card of cards) {
+			card.dataset.fanStyle = card.getAttribute("style") ?? "";
+		}
+		let active = -1;
+
+		const apply = (
+			card: HTMLElement,
+			x: number,
+			y: number,
+			rotate: number,
+			scale: number,
+			z: number,
+		) => {
+			card.style.setProperty("--stack-x", `${x.toFixed(1)}px`);
+			card.style.setProperty("--stack-y", `${y.toFixed(1)}px`);
+			card.style.setProperty("--stack-r", `${rotate}deg`);
+			card.style.setProperty("--stack-s", scale.toFixed(2));
+			card.style.setProperty("--stack-z", String(z));
+		};
+
+		const layout = () => {
+			if (active < 0) return;
+			const width = stack.clientWidth;
+			const cardWidth = cards[0].offsetWidth || 1;
+			const focusWidth = Math.min(width * 0.46, 320);
+			const focusHeight = (focusWidth * 4) / 3;
+			const thumbWidth = Math.max(40, Math.min(64, width * 0.08));
+			const thumbHeight = (thumbWidth * 4) / 3;
+			const rowGap = 32;
+			const height = focusHeight + rowGap + thumbHeight + 8;
+			stack.style.height = `${height.toFixed(1)}px`;
+
+			cards.forEach((card, index) => {
+				if (index === active) {
+					card.classList.add("is-active");
+					apply(
+						card,
+						0,
+						focusHeight / 2 - height / 2,
+						0,
+						focusWidth / cardWidth,
+						60,
+					);
+					return;
+				}
+				card.classList.remove("is-active");
+				const order = index < active ? index : index - 1;
+				const total = cards.length - 1;
+				const x = (order - (total - 1) / 2) * (thumbWidth + 10);
+				apply(
+					card,
+					x,
+					height / 2 - thumbHeight / 2,
+					0,
+					thumbWidth / cardWidth,
+					30,
+				);
+			});
+		};
+
+		const collapse = () => {
+			active = -1;
+			stack.classList.remove("is-selected");
+			stack.style.height = "";
+			for (const card of cards) {
+				card.classList.remove("is-active");
+				card.setAttribute("style", card.dataset.fanStyle ?? "");
+			}
+		};
+
+		const select = (index: number) => {
+			if (index === active) {
+				collapse();
+				return;
+			}
+			active = index;
+			stack.classList.add("is-selected");
+			layout();
+		};
+
+		stack.addEventListener(
+			"click",
+			(event) => {
+				const target = (event.target as HTMLElement).closest<HTMLElement>(
+					"[data-album-card]",
+				);
+				if (!target) return;
+				const index = Number(target.dataset.index);
+				if (Number.isNaN(index)) return;
+				select(index);
+			},
+			{ signal },
+		);
+
+		document.addEventListener(
+			"keydown",
+			(event) => {
+				if (event.key === "Escape" && active >= 0) collapse();
+			},
+			{ signal },
+		);
+
+		window.addEventListener(
+			"resize",
+			() => {
+				if (active >= 0) layout();
+			},
+			{ signal },
+		);
+
+		return () => {
+			controller.abort();
+		};
+	}
+
+	/** 页脚运行时长：SSR 已给出首帧文本，这里每秒按建站时间重算。 */
+	function mountRuntimeClock(home: HTMLElement): () => void {
+		const node = home.querySelector<HTMLElement>("[data-mmz-runtime]");
+		const output = node?.querySelector<HTMLElement>("[data-mmz-runtime-text]");
+		const template = node?.dataset.template;
+		const since = node?.dataset.since;
+		if (!node || !output || !template || !since) return () => {};
+
+		const startedAt = new Date(since).getTime();
+		if (Number.isNaN(startedAt)) return () => {};
+
+		const render = () => {
+			const elapsed = Math.max(0, Date.now() - startedAt);
+			output.textContent = template.replace(/\{(\w+)\}/g, (_, key: string) => {
+				const value =
+					key === "days"
+						? Math.floor(elapsed / 86400000)
+						: key === "hours"
+							? Math.floor(elapsed / 3600000) % 24
+							: key === "minutes"
+								? Math.floor(elapsed / 60000) % 60
+								: key === "seconds"
+									? Math.floor(elapsed / 1000) % 60
+									: null;
+				return value === null ? `{${key}}` : String(value);
+			});
+		};
+
+		render();
+		const timer = window.setInterval(render, 1000);
+		return () => window.clearInterval(timer);
+	}
+
+	function mountHome() {
+		const home = document.querySelector<HTMLElement>("[data-mmz-home]");
+		if (!home || home.dataset.mmzMounted === "true") return;
+		home.dataset.mmzMounted = "true";
+
+		const dialogueRoot = home.querySelector<HTMLElement>("[data-mmz-dialogue]");
+		const dialogueController = mountHomeDialogue(dialogueRoot);
+		const blindsRoot = home.querySelector<HTMLElement>("[data-mmz-blinds]");
+		const teardownBlinds = blindsRoot
+			? mountHomeBlinds(blindsRoot, {
+					setSceneVisible: dialogueController.setSceneVisible,
+					setGreetingVisible: dialogueController.setGreetingVisible,
+				})
+			: null;
+		const teardownProfile = mountProfileCard(home);
+		const teardownRuntime = mountRuntimeClock(home);
+		const teardownAlbum = mountAlbumStack(home);
+
+		teardown = () => {
+			teardownBlinds?.();
+			dialogueController.destroy();
+			teardownProfile();
+			teardownRuntime();
+			teardownAlbum();
+			teardown = null;
+		};
+	}
+
+	document.addEventListener("swup:visit:start", () => {
+		teardown?.();
+	});
+	document.addEventListener("swup:page:view", mountHome);
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", mountHome, { once: true });
+	} else {
+		mountHome();
+	}
+</script>
+
+<style>
+	.mmz-home {
 		position: relative;
-		isolation: isolate;
+	}
+
+	/* 移动端空态文案（桌面数据卡已移除，仅保留共用样式） */
+	.mmz-card__empty {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: color-mix(in oklab, var(--on-surface) 55%, transparent);
+	}
+
+	/* ------------------------------------------------ 顶部个人信息卡 */
+
+	/* 与顶栏胶囊左缘对齐：页面宽度之外的留白 + 胶囊内边距。
+	   收起态不可见也不可点，避免遮挡首屏影像与终幕。 */
+	.mmz-profile {
+		position: fixed;
+		top: 4.75rem;
+		left: max(0.75rem, calc((100vw - var(--page-width, 90rem)) / 2 + 0.75rem));
+		z-index: 60;
+		width: min(21.25rem, calc(100vw - 1.5rem));
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		transform: translateY(-0.4rem);
+		transition:
+			opacity var(--m3e-duration-short) var(--m3e-easing-standard),
+			transform var(--m3e-duration-short) var(--m3e-easing-standard),
+			visibility 0s linear var(--m3e-duration-short);
+	}
+
+	.mmz-profile[data-open="true"] {
+		opacity: 1;
+		visibility: visible;
+		pointer-events: auto;
+		transform: translateY(0);
+		transition:
+			opacity var(--m3e-duration-short) var(--m3e-easing-standard),
+			transform var(--m3e-duration-short) var(--m3e-easing-standard),
+			visibility 0s;
+	}
+
+	.mmz-profile__card {
 		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-		justify-content: flex-end;
-		align-items: flex-start;
-		gap: var(--m3e-space-3);
-		min-height: clamp(18rem, 42vh, 28rem);
-		padding: clamp(1.5rem, 4vw, 3rem);
 		border: 1px solid var(--outline-variant);
 		border-radius: var(--shape-corner-xl);
-		background-color: var(--card-bg);
-		background-image:
-			linear-gradient(
-				color-mix(in srgb, var(--on-surface) 5%, transparent) 1px,
-				transparent 1px
-			),
-			linear-gradient(
-				90deg,
-				color-mix(in srgb, var(--on-surface) 5%, transparent) 1px,
-				transparent 1px
-			);
-		background-size: 3rem 3rem;
+		background: var(--surface-container-lowest);
+		box-shadow: var(--m3e-elevation-3);
 	}
 
-	/* 幽灵首字母：描边空心字，压在标题后方，纯装饰 */
-	.mmz-hero__ghost {
-		position: absolute;
-		z-index: -1;
-		left: -0.06em;
-		bottom: -0.3em;
-		font-family: var(--font-sans);
-		font-size: clamp(9rem, 28vw, 18rem);
-		font-weight: 800;
-		line-height: 0.8;
-		letter-spacing: -0.06em;
-		color: transparent;
-		-webkit-text-stroke: 1px
-			color-mix(in srgb, var(--on-surface) 22%, transparent);
-		user-select: none;
-		pointer-events: none;
+	.mmz-profile__banner {
+		height: 7.5rem;
+		overflow: hidden;
 	}
 
-	/* 同步补一个非 WebKit 的 text-stroke 回退（不支持时保持透明，不产生实心色块） */
-	.mmz-hero__ghost {
-		text-stroke: 1px color-mix(in srgb, var(--on-surface) 22%, transparent);
+	.mmz-profile__banner img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
 	}
 
-	/* 展示级字号：M3E 阶梯上限为 headline-medium，门户字标需要更大的
-	   内容型展示字号，这里是经过评审的局部例外（不影响正文与组件文字） */
-	.mmz-hero__title {
-		margin: 0;
-		font-family: var(--font-sans);
-		font-size: clamp(2.5rem, 7vw, 4.75rem);
-		font-weight: 800;
-		line-height: 1.02;
-		letter-spacing: -0.045em;
-		color: var(--on-surface);
-		overflow-wrap: anywhere;
-	}
-
-	.mmz-hero__subtitle {
-		margin: 0;
-		font: var(--m3e-type-title-medium);
-		color: var(--on-surface-variant);
-	}
-
-	.mmz-hero__bio {
-		max-width: 42ch;
-		margin: 0;
-		font: var(--m3e-type-body-large);
-		color: var(--on-surface-variant);
-		overflow-wrap: anywhere;
-	}
-
-	.mmz-hero__links {
+	.mmz-profile__identity {
 		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 0 1.25rem;
+		text-align: center;
+	}
+
+	.mmz-profile__avatar {
+		width: 5.5rem;
+		height: 5.5rem;
+		margin-top: -2.9rem;
+		border: 3px solid var(--surface-container-lowest);
+		border-radius: var(--shape-corner-full);
+		object-fit: cover;
+		background: var(--surface-container);
+	}
+
+	.mmz-profile__name {
+		margin: 0.85rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 1.15rem;
+		font-weight: 800;
+		letter-spacing: 0.01em;
+		color: var(--on-surface);
+	}
+
+	.mmz-profile__role {
+		margin: 0.3rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 0.75rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-profile__social {
+		display: flex;
+		justify-content: center;
+		gap: 1.5rem;
+		margin: 1.1rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.mmz-profile__social li {
+		display: flex;
+	}
+
+	.mmz-profile__social a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.5rem;
+		height: 1.5rem;
+		border-radius: var(--shape-corner-full);
+		color: var(--on-surface);
+		transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-profile__social a:hover,
+	.mmz-profile__social a:focus-visible {
+		color: var(--primary);
+	}
+
+	.mmz-profile__social a:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 3px;
+	}
+
+	.mmz-profile__social a :global(svg) {
+		width: 1.25rem;
+		height: 1.25rem;
+	}
+
+	/* 12 列（月份）× 5 格（按旬分段）的发文热力图；深浅用 on-surface 透明度表达，
+	   不引入第三种色相 */
+	.mmz-profile__heatmap {
+		display: grid;
+		grid-template-columns: repeat(12, minmax(0, 1fr));
+		gap: 0.3rem;
+		margin: 1.15rem 1.1rem 0;
+		padding-top: 1.1rem;
+		border-top: 1px solid var(--outline-variant);
+	}
+
+	.mmz-profile__month {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.28rem;
+	}
+
+	.mmz-profile__month-label {
+		overflow: hidden;
+		font-family: var(--font-sans);
+		font-size: 0.6rem;
+		line-height: 1;
+		color: var(--on-surface-variant);
+		text-align: center;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.mmz-profile__cells {
+		display: flex;
+		flex-direction: column;
+		gap: 0.28rem;
+	}
+
+	.mmz-profile__cell {
+		width: 100%;
+		aspect-ratio: 1;
+		border-radius: var(--shape-corner-xs);
+		background: color-mix(in oklab, var(--on-surface) 10%, transparent);
+	}
+
+	.mmz-profile__cell[data-level="1"] {
+		background: color-mix(in oklab, var(--on-surface) 24%, transparent);
+	}
+
+	.mmz-profile__cell[data-level="2"] {
+		background: color-mix(in oklab, var(--on-surface) 42%, transparent);
+	}
+
+	.mmz-profile__cell[data-level="3"] {
+		background: color-mix(in oklab, var(--on-surface) 68%, transparent);
+	}
+
+	.mmz-profile__sites {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin: 1.1rem 0.9rem 0.9rem;
+		padding: 0.6rem 0.85rem;
+		border-radius: var(--shape-corner-l);
+		background: var(--surface-container);
+	}
+
+	.mmz-profile__sites-label {
+		font-family: var(--font-sans);
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: var(--on-surface);
+	}
+
+	.mmz-profile__sites-list {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0 0 0 auto;
+		padding: 0;
+		list-style: none;
+	}
+
+	.mmz-profile__sites-list a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: var(--shape-corner-full);
+		background: var(--surface-container-lowest);
+		color: var(--on-surface);
+		transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-profile__sites-list a:hover,
+	.mmz-profile__sites-list a:focus-visible {
+		color: var(--primary);
+	}
+
+	.mmz-profile__sites-list a :global(svg) {
+		width: 1rem;
+		height: 1rem;
+	}
+
+	.mmz-profile__sites-more {
+		display: inline-flex;
+		align-items: center;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-profile__sites-more :global(svg) {
+		width: 1.1rem;
+		height: 1.1rem;
+	}
+
+	/* ------------------------------------------------------- 首页页脚 */
+
+	.mmz-footer {
+		position: relative;
+		z-index: 2;
+		width: 100%;
+		max-width: 72rem;
+		margin: clamp(2.5rem, 6vw, 5rem) auto 0;
+		padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 3vw, 1.75rem) 2.5rem;
+		border-top: 1px solid var(--outline-variant);
+		box-sizing: border-box;
+	}
+
+	.mmz-footer__top {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
 		flex-wrap: wrap;
-		gap: var(--m3e-space-2);
+		gap: 2rem;
+	}
+
+	.mmz-footer__brand {
+		display: flex;
+		max-width: 32rem;
+		flex-direction: column;
+		gap: 0.9rem;
+	}
+
+	/* 手写体签名：无本地字体时用粗斜体近似；配置提供 logo 图时直接使用图片 */
+	.mmz-footer__logo {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: clamp(2rem, 3vw, 2.75rem);
+		font-weight: 800;
+		font-style: italic;
+		line-height: 1.05;
+		letter-spacing: -0.01em;
+		color: var(--on-surface);
+		transform: skewX(-4deg);
+		transform-origin: left bottom;
+	}
+
+	/* 图片签名：按固定高度排版，宽度由固有宽高比推导；
+	   align-self 必须绕过 flex 列的 stretch，否则图片会被拉成整列宽 */
+	.mmz-footer__logo-image {
+		display: block;
+		align-self: flex-start;
+		width: auto;
+		height: clamp(2.25rem, 2.8vw, 2.75rem);
+		object-fit: contain;
+	}
+
+	/* 单色签名在深色底上反白；彩色 Logo 不在此列（本主题品牌图约定为单色签名） */
+	:global(html.dark) .mmz-footer__logo-image {
+		filter: invert(1);
+	}
+
+	.mmz-footer__tagline {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.9rem;
+		letter-spacing: 0.02em;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-footer__contact {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.9rem;
+	}
+
+	.mmz-footer__contact-title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.85rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		color: var(--on-surface);
+	}
+
+	.mmz-footer__contact-list {
+		display: flex;
+		gap: 0.6rem;
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
-	.mmz-hero__link {
+	.mmz-footer__contact-link {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 2.5rem;
-		height: 2.5rem;
+		width: 3rem;
+		height: 3rem;
 		border: 1px solid var(--outline-variant);
 		border-radius: var(--shape-corner-full);
-		color: var(--on-surface);
-		transition:
-			background-color var(--m3e-duration-short) var(--m3e-easing-standard),
-			border-color var(--m3e-duration-short) var(--m3e-easing-standard);
-	}
-
-	.mmz-hero__link:hover {
-		background: var(--surface-container);
-		border-color: var(--outline);
-	}
-
-	.mmz-hero__link:focus-visible {
-		outline: 2px solid var(--primary);
-		outline-offset: 2px;
-	}
-
-	.mmz-hero__link :global(svg) {
-		width: 1.125rem;
-		height: 1.125rem;
-	}
-
-	/* 数据导览层：2×2 → 四列，数值使用同一展示字号例外 */
-	.mmz-data {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: var(--m3e-space-3);
-	}
-
-	@media (min-width: 768px) {
-		.mmz-data {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
-		}
-	}
-
-	.mmz-data__card {
-		position: relative;
-		display: flex;
-		flex-direction: column;
-		gap: var(--m3e-space-1);
-		padding: var(--m3e-space-4);
-		border: 1px solid var(--outline-variant);
-		border-radius: var(--shape-corner-l);
 		background: var(--card-bg);
 		color: var(--on-surface);
-		text-decoration: none;
 		transition:
+			color var(--m3e-duration-short) var(--m3e-easing-standard),
+			border-color var(--m3e-duration-short) var(--m3e-easing-standard),
 			background-color var(--m3e-duration-short) var(--m3e-easing-standard),
-			border-color var(--m3e-duration-short) var(--m3e-easing-standard);
+			translate var(--m3e-duration-short) var(--m3e-easing-standard);
 	}
 
-	.mmz-data__card:hover {
+	.mmz-footer__contact-link:hover {
+		border-color: var(--on-surface);
 		background: var(--surface-container);
-		border-color: var(--outline);
+		translate: 0 -2px;
 	}
 
-	.mmz-data__card:focus-visible {
+	.mmz-footer__contact-link:focus-visible {
 		outline: 2px solid var(--primary);
 		outline-offset: 2px;
 	}
 
-	.mmz-data__icon {
-		width: 1.25rem;
-		height: 1.25rem;
+	.mmz-footer__contact-link :global(svg) {
+		width: 1.35rem;
+		height: 1.35rem;
+	}
+
+	.mmz-footer__links {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin: 0.2rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 0.8rem;
+	}
+
+	.mmz-footer__links a {
+		color: var(--on-surface-variant);
+		text-decoration: none;
+		transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-footer__links a + a::before {
+		content: "/";
+		margin-right: 0.35rem;
+		color: var(--outline);
+	}
+
+	.mmz-footer__links a:hover,
+	.mmz-footer__links a:focus-visible {
+		color: var(--on-surface);
+	}
+
+	.mmz-footer__links a:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	.mmz-footer__rule {
+		height: 1px;
+		margin: 1.75rem 0;
+		background: var(--outline-variant);
+	}
+
+	.mmz-footer__bottom {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 1.5rem;
+	}
+
+	.mmz-footer__legal {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.mmz-footer__credit {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.8rem;
+		color: var(--on-surface);
+	}
+
+	/* 备案行：窄屏放不下时整项换行，而不是把徽标和号码挤成一团 */
+	.mmz-footer__filing {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem 0.85rem;
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.75rem;
+		line-height: 1.5;
 		color: var(--on-surface-variant);
 	}
 
-	.mmz-data__value {
-		margin-top: var(--m3e-space-2);
+	/* 徽标与号码各自居中，图片不再随基线上下浮动 */
+	.mmz-footer__filing > a,
+	.mmz-footer__filing > span {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.28rem;
+	}
+
+	.mmz-footer__filing a {
+		color: inherit;
+		text-decoration: none;
+		transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-footer__filing a:hover,
+	.mmz-footer__filing a:focus-visible {
+		color: var(--on-surface);
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+
+	.mmz-footer__filing-sep {
+		color: var(--outline);
+	}
+
+	.mmz-footer__filing-badge {
+		display: block;
+		width: 0.875rem;
+		height: 0.875rem;
+		flex: none;
+		border-radius: 2px;
+		object-fit: contain;
+	}
+
+	.mmz-footer__meta {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.35rem;
+	}
+
+	.mmz-footer__meta-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0;
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.75rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-footer__meta-row :global(svg) {
+		width: 0.95rem;
+		height: 0.95rem;
+		color: var(--on-surface-variant);
+	}
+
+	/* ------------------------------------------------------------- 移动端 */
+
+	.mmz-mobile {
+		display: none;
+	}
+
+	.mmz-mobile-hero {
+		display: flex;
+		min-height: 100svh;
+		flex-direction: column;
+		align-items: center;
+		justify-content: space-between;
+		padding: 4.5rem 1.25rem 5.75rem;
+		text-align: center;
+	}
+
+	.mmz-mobile-hero__main {
+		display: flex;
+		margin-top: clamp(6.5rem, 27svh, 12rem);
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.mmz-mobile-avatar {
+		width: 7rem;
+		height: 7rem;
+		padding: 4px;
+		border: 2px solid var(--on-surface);
+		border-radius: var(--shape-corner-full);
+		object-fit: cover;
+		background: var(--page-bg);
+	}
+
+	.mmz-mobile-name {
+		margin: 2rem 0 0;
 		font-family: var(--font-sans);
-		font-size: clamp(1.75rem, 4vw, 2.5rem);
-		font-weight: 700;
+		font-size: 2rem;
+		font-weight: 900;
 		line-height: 1.1;
+		letter-spacing: 0.1em;
+	}
+
+	.mmz-mobile-role {
+		margin: 0.75rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-mobile-bio {
+		max-width: 21rem;
+		margin: 0.9rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 0.75rem;
+		line-height: 1.7;
+		color: color-mix(in oklab, var(--on-surface) 55%, transparent);
+	}
+
+	.mmz-mobile-hero__foot {
+		display: grid;
+		justify-items: center;
+		gap: 1.25rem;
+	}
+
+	.mmz-mobile-stats {
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.4rem;
+		font-family: var(--font-sans);
+	}
+
+	.mmz-mobile-stat {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.3em;
+		color: var(--on-surface-variant);
+		font-size: 0.75rem;
+		text-decoration: none;
+	}
+
+	.mmz-mobile-stat__value {
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.875rem;
+		font-weight: 800;
+		color: var(--on-surface);
+	}
+
+	.mmz-mobile-stats__sep {
+		color: var(--outline);
+		font-size: 0.75rem;
+	}
+
+	.mmz-mobile-social {
+		display: flex;
+		gap: 0.75rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.mmz-mobile-social__link {
+		display: inline-grid;
+		width: 2.5rem;
+		height: 2.5rem;
+		place-items: center;
+		border: 1px solid color-mix(in oklab, var(--on-surface) 14%, transparent);
+		border-radius: var(--shape-corner-full);
+		color: var(--on-surface);
+	}
+
+	.mmz-mobile-social__link :global(svg) {
+		width: 1.1rem;
+		height: 1.1rem;
+	}
+
+	.mmz-mobile-content {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		padding: 1rem 1.25rem 3rem;
+	}
+
+	/* 分区标题：行标签 + 大字 + 通栏横线 */
+	.mmz-mobile-head {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+		margin-top: 1rem;
+	}
+
+	.mmz-mobile-head__row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.7rem;
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 900;
+		letter-spacing: 0.14em;
+	}
+
+	.mmz-mobile-head__index {
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		color: color-mix(in oklab, var(--on-surface) 45%, transparent);
+	}
+
+	.mmz-mobile-head__label {
+		font-family: var(--font-sans);
+	}
+
+	.mmz-mobile-head__en {
+		font-family: var(--font-sans);
+		font-size: clamp(2.6rem, 15vw, 3.75rem);
+		font-weight: 900;
+		line-height: 1.08;
 		letter-spacing: -0.02em;
+		text-transform: uppercase;
 		overflow-wrap: anywhere;
 	}
 
-	.mmz-data__label {
-		font: var(--m3e-type-label-medium);
-		color: var(--on-surface-variant);
+	.mmz-mobile-head__rule {
+		height: 2px;
+		background: var(--on-surface);
+	}
+
+	/* 置顶：静态叠放的三张卡，逐层下探 1rem */
+	.mmz-mobile-deck {
+		position: relative;
+		height: 14rem;
+		margin-bottom: 1.9rem;
+	}
+
+	.mmz-mobile-deck__card {
+		position: absolute;
+		inset: 0;
+		z-index: calc(10 - var(--deck-index, 0));
+		transform-origin: top center;
+		translate: 0 calc(var(--deck-index, 0) * 1rem);
+		scale: calc(1 - var(--deck-index, 0) * 0.05);
+	}
+
+	.mmz-mobile-deck__inner {
+		display: flex;
+		height: 100%;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 1.1rem 1.2rem;
+		border: 2px solid var(--on-surface);
+		border-radius: 1rem;
+		background: var(--page-bg);
+	}
+
+	.mmz-mobile-deck__meta {
+		margin: 0;
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		color: color-mix(in oklab, var(--on-surface) 58%, transparent);
+	}
+
+	.mmz-mobile-deck__link {
+		display: -webkit-box;
+		overflow: hidden;
+		font-family: var(--font-sans);
+		font-size: 1.1rem;
+		font-weight: 800;
+		line-height: 1.45;
+		color: inherit;
+		text-decoration: none;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+	}
+
+	.mmz-mobile-deck__desc {
+		display: -webkit-box;
+		overflow: hidden;
+		margin: 0;
+		font-size: 0.8rem;
+		line-height: 1.6;
+		color: color-mix(in oklab, var(--on-surface) 62%, transparent);
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+	}
+
+	.mmz-mobile-timeline {
+		display: flex;
+		flex-direction: column;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.mmz-mobile-timeline__item {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0 0 1.5rem 1.75rem;
+	}
+
+	/* 左侧时间竖线 */
+	.mmz-mobile-timeline__item::before {
+		content: "";
+		position: absolute;
+		top: 0.55rem;
+		bottom: -0.2rem;
+		left: 0.36rem;
+		width: 2px;
+		background: color-mix(in oklab, var(--on-surface) 20%, transparent);
+	}
+
+	.mmz-mobile-timeline__item:last-child::before {
+		bottom: auto;
+		height: 1.1rem;
+	}
+
+	/* 时间线节点圆点 */
+	.mmz-mobile-timeline__item::after {
+		content: "";
+		position: absolute;
+		top: 0.5rem;
+		left: 0;
+		width: 0.75rem;
+		height: 0.75rem;
+		border: 2px solid var(--on-surface);
+		border-radius: 50%;
+		background: var(--page-bg);
+		box-sizing: border-box;
+	}
+
+	.mmz-mobile-timeline__title {
+		font-family: var(--font-sans);
+		font-size: 0.95rem;
+		font-weight: 700;
+		line-height: 1.5;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.mmz-mobile-timeline__category {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		color: color-mix(in oklab, var(--on-surface) 58%, transparent);
+	}
+
+	.mmz-mobile-timeline__date {
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		color: color-mix(in oklab, var(--on-surface) 48%, transparent);
+	}
+
+	/* ---------------------------------------------- 左下角角色 + 想法气泡 */
+
+	.mmz-dialogue {
+		--mmz-dialogue-size: clamp(12rem, 13vw, 16rem);
+		--mmz-dialogue-ink: oklch(0.22 0.01 300);
+		--mmz-dialogue-paper: oklch(1 0 0);
+		--mmz-dialogue-stroke: 0.2rem;
+		--mmz-dialogue-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+		position: sticky;
+		bottom: 0;
+		z-index: 3;
+		width: 100vw;
+		height: 0;
+		margin-inline: calc(50% - 50vw);
+	}
+
+	@supports (transition-timing-function: linear(0, 1)) {
+		.mmz-dialogue {
+			--mmz-dialogue-spring: linear(
+				0,
+				0.36 12%,
+				0.86 26%,
+				1.12 36%,
+				0.98 46%,
+				1.02 58%,
+				0.995 74%,
+				1
+			);
+		}
+	}
+
+	/* 角色本体：底边压在视口底边、左缘贴住视口左缘；图本身有透明留白，
+	   看着就是卡在角上。JS 接管前保持隐藏，入场只翻 data 属性，过渡交给 CSS。 */
+	.mmz-dialogue__anchor {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		width: var(--mmz-dialogue-size);
+		aspect-ratio: 1;
+		opacity: 0;
+		visibility: hidden;
+		translate: 0 2.4rem;
+		transition:
+			opacity var(--m3e-duration-long) var(--mmz-ease),
+			visibility 0s linear var(--m3e-duration-long),
+			translate var(--m3e-duration-long) var(--mmz-ease);
+		will-change: transform, opacity;
+	}
+
+	.mmz-dialogue[data-scene-visible="true"] .mmz-dialogue__anchor {
+		opacity: 1;
+		visibility: visible;
+		translate: 0 0;
+		transition:
+			opacity var(--m3e-duration-long) var(--mmz-ease),
+			visibility 0s,
+			translate var(--m3e-duration-long) var(--mmz-ease);
+	}
+
+	.mmz-dialogue__sticker {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		line-height: 0;
+		filter: drop-shadow(0 0.5rem 0.8rem rgb(0 0 0 / 26%));
+		/* 支点在底边：压下去时头顶动、脚不动，才像按在桌上的一团棉花 */
+		transform-origin: 50% 100%;
+		transition: translate 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	.mmz-dialogue__sticker[data-pressed="true"] {
+		scale: 1.07 0.9;
+		transition: scale 220ms var(--mmz-dialogue-spring);
+	}
+
+	.mmz-dialogue__trigger {
+		position: absolute;
+		inset: 0;
+		padding: 0;
+		border: 0;
+		border-radius: 50% 50% 0 0;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.mmz-dialogue__trigger:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	/* 想法气泡：粗描边白椭圆，挂在角色头顶右上方，从左下角冒出来 */
+	.mmz-dialogue__bubble {
+		position: absolute;
+		bottom: 92%;
+		left: 52%;
+		z-index: 1;
+		width: max-content;
+		max-width: min(16rem, 42vw);
+		margin: 0;
+		padding: 0.95rem 1.75rem;
+		border: var(--mmz-dialogue-stroke) solid var(--mmz-dialogue-ink);
+		border-radius: 50%;
+		background: var(--mmz-dialogue-paper);
+		color: var(--mmz-dialogue-ink);
+		font-size: clamp(0.88rem, 0.95vw, 1rem);
+		font-weight: 800;
+		line-height: 1.45;
+		text-align: center;
+		text-wrap: balance;
+		transform-origin: 0% 100%;
+		cursor: pointer;
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			opacity 180ms ease,
+			visibility 0s linear 180ms;
+	}
+
+	.mmz-dialogue__bubble[data-open="true"] {
+		opacity: 1;
+		visibility: visible;
+		transition: none;
+	}
+
+	/* 思考泡泡的两颗小圆点，从气泡左下角一路落向角色头顶 */
+	.mmz-dialogue__bubble::before,
+	.mmz-dialogue__bubble::after {
+		content: "";
+		position: absolute;
+		border: var(--mmz-dialogue-stroke) solid var(--mmz-dialogue-ink);
+		border-radius: 50%;
+		background: var(--mmz-dialogue-paper);
+	}
+
+	.mmz-dialogue__bubble::before {
+		top: calc(100% + 0.2rem);
+		left: 0.9rem;
+		width: 1rem;
+		height: 0.85rem;
+	}
+
+	.mmz-dialogue__bubble::after {
+		top: calc(100% + 1.25rem);
+		left: 0.1rem;
+		width: 0.62rem;
+		height: 0.52rem;
+	}
+
+	.mmz-dialogue__sticker-image {
+		display: block;
+		width: 100%;
+		height: auto;
+		object-fit: contain;
+	}
+
+	/* 返回顶部：贴住对话层右下角，只在滚过首屏后出现 */
+	.mmz-backtop {
+		position: absolute;
+		right: 1.5rem;
+		bottom: 1.5rem;
+		z-index: 5;
+		display: grid;
+		width: 2.8rem;
+		height: 2.8rem;
+		border: 1px solid color-mix(in oklab, var(--on-surface) 22%, transparent);
+		border-radius: 50%;
+		background: color-mix(in oklab, var(--page-bg) 92%, var(--on-surface));
+		color: var(--on-surface);
+		box-shadow: 0 0.8rem 1.6rem -0.9rem rgb(0 0 0 / 34%);
+		font-size: 1.1rem;
+		cursor: pointer;
+		opacity: 0;
+		visibility: hidden;
+		place-items: center;
+		transition:
+			opacity var(--m3e-duration-medium) var(--mmz-ease),
+			visibility 0s linear var(--m3e-duration-medium),
+			translate var(--m3e-duration-medium) var(--mmz-ease);
+	}
+
+	.mmz-backtop[data-visible="true"] {
+		opacity: 1;
+		visibility: visible;
+		transition:
+			opacity var(--m3e-duration-medium) var(--mmz-ease),
+			visibility 0s,
+			translate var(--m3e-duration-medium) var(--mmz-ease);
+	}
+
+	.mmz-backtop:hover {
+		translate: 0 -2px;
+	}
+
+	/* -------------------------------------------- 首屏文字层（固定叠加） */
+
+	/* 文字压在彩色影像上，白字与暗色描边属于图片叠加的可读性例外，
+	   与 .mmz-dialogue 的墨色/纸色一样不随主题翻转。 */
+	.mmz-blinds__hero {
+		position: fixed;
+		inset: 0;
+		z-index: 6;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #fff;
+		pointer-events: none;
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			opacity var(--m3e-duration-long) var(--m3e-easing-standard),
+			visibility 0s linear var(--m3e-duration-long);
+	}
+
+	.mmz-blinds__hero[data-visible="true"] {
+		opacity: 1;
+		visibility: visible;
+		transition:
+			opacity var(--m3e-duration-long) var(--m3e-easing-standard),
+			visibility 0s;
+	}
+
+	/* 标题两侧的细白横线：只作为版式基准线，不承载信息 */
+	.mmz-blinds__hero-line {
+		position: absolute;
+		top: 48%;
+		width: min(20vw, 15rem);
+		height: 1px;
+		background: rgb(255 255 255 / 55%);
+	}
+
+	.mmz-blinds__hero-line[data-hero-line="left"] {
+		left: 3vw;
+	}
+
+	.mmz-blinds__hero-line[data-hero-line="right"] {
+		right: 8vw;
+	}
+
+	.mmz-blinds__hero-center {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: clamp(0.55rem, 1.5vh, 1.05rem);
+		width: min(38vw, 60vh);
+		max-width: 34rem;
+		text-align: center;
+		text-shadow: 0 2px 14px rgb(0 0 0 / 40%);
+	}
+
+	.mmz-blinds__hero-occupation {
+		margin: 0;
+		color: rgb(255 255 255 / 82%);
+		font-size: clamp(0.72rem, 0.95vw, 1rem);
+		font-weight: 700;
+		line-height: 1.2;
+		letter-spacing: 0.32em;
+		text-indent: 0.32em;
+	}
+
+	.mmz-blinds__hero-name {
+		margin: 0;
+		color: #fff;
+		font-size: clamp(1.9rem, 4vw, 4.4rem);
+		font-weight: 900;
+		line-height: 1.08;
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		text-shadow: 0 3px 16px rgb(0 0 0 / 35%);
+	}
+
+	.mmz-blinds__hero-bio {
+		margin: 0;
+		max-width: 100%;
+		color: rgb(255 255 255 / 88%);
+		font-size: clamp(0.78rem, 1vw, 1.08rem);
+		font-weight: 600;
+		line-height: 1.55;
+		letter-spacing: 0.14em;
+	}
+
+	/* 右缘贴边竖排列：柔和暗色渐变把白字托出画面 */
+	.mmz-blinds__hero-side {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: space-between;
+		width: 13%;
+		padding: calc(40px + 2rem) 15px 40px;
+		background: linear-gradient(-90deg, rgb(0 0 0 / 40%) 0%, transparent 100%);
+	}
+
+	.mmz-blinds__hero-pill {
+		color: #fff;
+		font-size: 0.65rem;
+		font-weight: bold;
+		letter-spacing: 2px;
+	}
+
+	.mmz-blinds__hero-vertical {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 15px;
+	}
+
+	.mmz-blinds__hero-v-title {
+		color: #fff;
+		font-size: 2.2rem;
+		font-weight: 900;
+		letter-spacing: 10px;
+		writing-mode: vertical-rl;
+		text-shadow: 0 4px 10px rgb(0 0 0 / 60%);
+	}
+
+	.mmz-blinds__hero-v-sub {
+		color: rgb(255 255 255 / 50%);
+		font-size: 0.7rem;
+		letter-spacing: 6px;
+		writing-mode: vertical-rl;
+	}
+
+	.mmz-blinds__hero-diamond {
+		color: #b5893d;
+		font-size: 0.7rem;
+		animation: mmz-hero-pulse 2s infinite ease-in-out;
+	}
+
+	@keyframes mmz-hero-pulse {
+		0%,
+		100% {
+			opacity: 0.3;
+			transform: scale(0.9);
+		}
+
+		50% {
+			opacity: 1;
+			transform: scale(1.1);
+		}
+	}
+
+	.mmz-blinds__hero-footer {
+		text-align: center;
+	}
+
+	.mmz-blinds__hero-footer-line {
+		width: 10px;
+		height: 1px;
+		margin: 0 auto 8px;
+		background: rgb(255 255 255 / 20%);
+	}
+
+	.mmz-blinds__hero-micro {
+		margin: 0;
+		color: rgb(255 255 255 / 30%);
+		font-size: 0.45rem;
+		letter-spacing: 3px;
+		writing-mode: vertical-rl;
+		transform: rotate(180deg);
+	}
+
+	/* 底部对话卡：磨砂深色玻璃，水平居中靠下 */
+	.mmz-blinds__hero-speech {
+		position: absolute;
+		bottom: clamp(4.4rem, 8.6vh, 6.2rem);
+		left: 50%;
+		z-index: 2;
+		width: min(34rem, 82%);
+		padding: clamp(0.9rem, 1.35vw, 1.2rem) clamp(1rem, 1.55vw, 1.35rem);
+		border: 2px solid #000;
+		border-radius: 8px;
+		background:
+			linear-gradient(135deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 5%)),
+			rgb(8 10 12 / 44%);
+		box-shadow: 0 22px 54px rgb(0 0 0 / 32%);
+		color: rgb(255 255 255 / 86%);
+		text-align: center;
+		transform: translateX(-50%);
+		transform-origin: 50% 100%;
+		-webkit-backdrop-filter: blur(18px) saturate(145%);
+		backdrop-filter: blur(18px) saturate(145%);
+	}
+
+	.mmz-blinds__hero-speech-zh {
+		margin: 0;
+		color: rgb(255 255 255 / 90%);
+		font-size: clamp(1rem, 1.32vw, 1.34rem);
+		font-weight: 950;
+		line-height: 1;
+		letter-spacing: 0.14em;
+	}
+
+	.mmz-blinds__hero-speech-en {
+		margin: 0.46rem 0 0;
+		color: rgb(255 255 255 / 54%);
+		font-size: clamp(0.58rem, 0.76vw, 0.8rem);
+		font-weight: 850;
+		line-height: 1.25;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
 
-	.mmz-data__arrow {
-		position: absolute;
-		top: var(--m3e-space-4);
-		right: var(--m3e-space-4);
-		width: 1.125rem;
-		height: 1.125rem;
-		color: var(--on-surface-variant);
+	/* -------------------------------------------- 双层影像：揭示 + 横向五幕 */
+
+	.mmz-blinds {
+		position: relative;
+		z-index: 1;
+		width: 100vw;
+		margin-right: calc(50% - 50vw);
+		margin-left: calc(50% - 50vw);
+		isolation: isolate;
+	}
+
+	.mmz-blinds__reveal,
+	.mmz-blinds__scenes {
+		position: relative;
+		z-index: 1;
+		width: 100%;
+		height: 100vh;
+		min-height: 100vh;
+		background: transparent;
+	}
+
+	.mmz-blinds__reveal-viewport {
+		position: relative;
+		width: 100%;
+		height: 100vh;
+		min-height: 100vh;
+		overflow: hidden;
+		background: transparent;
+	}
+
+	.mmz-blinds__scenes-viewport {
+		position: sticky;
+		top: 0;
+		width: 100%;
+		height: 100vh;
+		min-height: 100vh;
+		overflow: hidden;
+		background: transparent;
+	}
+
+	.mmz-blinds__stage {
+		position: fixed;
+		inset: 0;
+		z-index: 0;
+		/* 刻意不写 width / height：inset: 0 恒等于视口，
+		   reveal 背景的 cover 裁切与 portal 收缩几何都以此为基准 */
+		overflow: hidden;
+		background: var(--page-bg);
 		opacity: 0;
-		transform: translate(-0.25rem, 0.25rem);
-		transition:
-			opacity var(--m3e-duration-short) var(--m3e-easing-standard),
-			transform var(--m3e-duration-short) var(--m3e-easing-standard);
+		visibility: hidden;
+		pointer-events: none;
 	}
 
-	.mmz-data__card:hover .mmz-data__arrow,
-	.mmz-data__card:focus-visible .mmz-data__arrow {
+	.mmz-blinds__background {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
+		user-select: none;
+		-webkit-user-drag: none;
+	}
+
+	.mmz-blinds__portal,
+	.mmz-blinds__track {
+		position: absolute;
+		inset: 0;
+	}
+
+	/* 过渡层：全屏背景收缩成首幕图框。
+	   收缩靠 clip-path 收窗（只触发 paint）加内部图片的等比 scale，
+	   起点精确等于视口 cover、终点精确等于图框 cover。 */
+	.mmz-blinds__portal {
+		z-index: 5;
+		overflow: hidden;
+		background: var(--page-bg);
+		opacity: 0;
+		visibility: hidden;
+		will-change: clip-path, opacity;
+	}
+
+	/* 过渡层图片不吃 inset：控制器按「视口 cover 的渲染尺寸」写显式宽高，
+	   收缩全程只用等比 scale。居中交给控制器写的 translate，这里只给 top / left。 */
+	.mmz-blinds__portal-image {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center;
+		user-select: none;
+		-webkit-user-drag: none;
+		will-change: transform;
+	}
+
+	/* ------------------------ 第二层拼图：整周期左移，单张 SVG 蒙版不逐块建 DOM */
+
+	.mmz-blinds__cycle {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		--mmz-cycle-period: 224px;
+		--mmz-cycle-line: color-mix(in srgb, var(--on-surface) 12%, transparent);
+		overflow: hidden;
+		opacity: 0;
+		visibility: hidden;
+		transform-origin: 50% 100%;
+		will-change: transform, opacity;
+	}
+
+	.mmz-blinds__cycle-track {
+		position: absolute;
+		top: 0;
+		right: calc(-1 * var(--mmz-cycle-period));
+		bottom: 0;
+		left: 0;
+		z-index: 0;
+		background: var(--mmz-cycle-line);
+		mask-image: url("../assets/blinds/puzzle.svg");
+		mask-size: var(--mmz-cycle-period) var(--mmz-cycle-period);
+		mask-repeat: repeat;
+		will-change: transform;
+	}
+
+	/* -------------------------------- 第二层留言墙：气泡各自漂过，飘完换下一条 */
+
+	.mmz-blinds__bubbles {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		overflow: hidden;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.mmz-blind-bubble {
+		position: absolute;
+		top: var(--mmz-bubble-top, 50%);
+		left: 0;
+		max-width: 20rem;
+		will-change: transform;
+		animation: mmz-bubble-drift var(--mmz-bubble-duration, 32s) linear infinite;
+	}
+
+	.mmz-blind-bubble.is-empty {
+		visibility: hidden;
+	}
+
+	.mmz-blind-bubble__body {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.45em;
+		padding: 0.42rem 0.95rem 0.6rem;
+		border: 1px solid color-mix(in srgb, var(--on-surface) 16%, transparent);
+		border-radius: var(--shape-corner-l);
+		background: color-mix(in srgb, var(--page-bg) 68%, transparent);
+		color: color-mix(in srgb, var(--on-surface) 62%, transparent);
+		font-size: calc(0.86rem * var(--mmz-bubble-scale, 1));
+		line-height: 1.45;
+	}
+
+	.mmz-blind-bubble__image {
+		display: none;
+		flex: none;
+		width: 9em;
+		height: 6.2em;
+		border-radius: var(--shape-corner-m);
+		object-fit: cover;
+		opacity: 0;
+		background: color-mix(in srgb, var(--on-surface) 12%, transparent);
+		transition: opacity 0.45s ease;
+	}
+
+	.mmz-blind-bubble__image.is-loading {
+		background-image: linear-gradient(
+			100deg,
+			transparent 20%,
+			color-mix(in srgb, var(--on-surface) 16%, transparent) 45%,
+			transparent 70%
+		);
+		background-size: 220% 100%;
+		animation: mmz-bubble-shimmer 1.25s linear infinite;
+	}
+
+	.mmz-blind-bubble__image.is-loaded {
 		opacity: 1;
-		transform: none;
 	}
 
+	.mmz-blind-bubble__text {
+		display: -webkit-box;
+		max-width: 100%;
+		overflow: hidden;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow-wrap: break-word;
+		white-space: normal;
+	}
+
+	.mmz-blind-bubble.has-image .mmz-blind-bubble__image {
+		display: block;
+	}
+
+	.mmz-blinds__bubbles.is-paused .mmz-blind-bubble,
+	.mmz-blinds__bubbles.is-paused .mmz-blind-bubble__image {
+		animation-play-state: paused;
+	}
+
+	@keyframes mmz-bubble-shimmer {
+		from {
+			background-position: 180% 0;
+		}
+
+		to {
+			background-position: -80% 0;
+		}
+	}
+
+	@keyframes mmz-bubble-drift {
+		from {
+			transform: translate3d(100vw, 0, 0);
+		}
+
+		to {
+			transform: translate3d(-100%, 0, 0);
+		}
+	}
+
+	.mmz-blinds__track {
+		z-index: 2;
+		pointer-events: none;
+	}
+
+	/* 第二幕起的单幕几何：尺寸与纸色由子组件继承 */
+	.mmz-blinds__scenes {
+		--mmz-blind-edge: 2px;
+		--mmz-blind-pad: clamp(1rem, 1.9vw, 1.6rem);
+		--mmz-blind-band-height: clamp(2.9rem, 5vh, 3.6rem);
+		--mmz-blind-photo-width: min(
+			44vw,
+			52rem,
+			calc(
+				(
+					60vh - var(--mmz-blind-pad) * 2 - var(--mmz-blind-band-height)
+				) * 4 / 3
+			)
+		);
+		--mmz-blind-photo-height: calc(var(--mmz-blind-photo-width) * 3 / 4);
+		--mmz-blind-width: calc(
+			var(--mmz-blind-photo-width) + var(--mmz-blind-pad) * 2 +
+				var(--mmz-blind-edge) * 2
+		);
+		--mmz-blind-height: calc(
+			var(--mmz-blind-photo-height) + var(--mmz-blind-pad) * 2 +
+				var(--mmz-blind-band-height) + var(--mmz-blind-edge) * 2
+		);
+		/* 明信片纸面与墨色不随主题翻转，属内容型材质例外 */
+		--mmz-blind-paper: #f9f3e4;
+		--mmz-blind-ink: #4c4536;
+		--mmz-blind-wood: oklch(from var(--mmz-blind-ink) calc(l + 0.16) 0 h);
+		--mmz-blind-highlight: oklch(from var(--mmz-blind-paper) l 0 h);
+		--mmz-blind-clip-height: clamp(3.4rem, 5.7vw, 5rem);
+		/* 吊线长度 = 视窗顶到卡顶 + 8rem 余量；双数幕会覆盖，引用处必须现算 */
+		--mmz-blind-string-length: calc(
+			50vh - var(--mmz-blind-height) / 2 + 8rem
+		);
+		height: calc(100vh + max(3400px, 340vh));
+	}
+
+	/* ------------------------ 底部图片列表：底边贴层底，每张独立位移 */
+
+	.mmz-blinds__stands {
+		--mmz-stand-height: min(24vh, 15rem);
+		--mmz-stand-width: min(24vw, 13rem);
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 5;
+		height: var(--mmz-stand-height);
+		overflow: hidden;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.mmz-blinds__stands-track {
+		position: absolute;
+		inset: 0;
+	}
+
+	.mmz-blinds__stand {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		width: max-content;
+		pointer-events: auto;
+		touch-action: pan-y;
+		cursor: grab;
+		user-select: none;
+		will-change: transform;
+	}
+
+	.mmz-blinds__stand.is-dragging {
+		cursor: grabbing;
+	}
+
+	/* 同时限制单张宽高；内层以底边为铰链立起，不占用外层横移的 transform */
+	.mmz-blinds__stand-image {
+		display: block;
+		width: auto;
+		height: auto;
+		max-width: var(--mmz-stand-width);
+		max-height: var(--mmz-stand-height);
+		object-fit: contain;
+		object-position: center bottom;
+		transform-origin: 50% 100%;
+		user-select: none;
+		-webkit-user-drag: none;
+	}
+
+	@supports (height: 100dvh) {
+		.mmz-blinds__reveal,
+		.mmz-blinds__scenes,
+		.mmz-blinds__reveal-viewport,
+		.mmz-blinds__scenes-viewport {
+			height: 100dvh;
+			min-height: 100dvh;
+		}
+
+		.mmz-blinds__stands {
+			--mmz-stand-height: min(24dvh, 15rem);
+		}
+	}
+
+	/* -------------------------------------------- 终幕放大与内容区 */
+
+	/* 终幕放大层：最后一幕从图框扩到满屏。恒为 fixed，必须挂在根层级，
+	   被 pin 的场景 section 残留 transform 会把 fixed 退化成相对 section 定位。
+	   z 序：stage(0) < 终幕层(1) < 内容区(2) < 终幕文字层(3)。 */
+	.mmz-blinds__finale {
+		position: fixed;
+		inset: 0;
+		z-index: 1;
+		overflow: hidden;
+		background: var(--page-bg);
+		pointer-events: none;
+		opacity: 0;
+		visibility: hidden;
+		will-change: clip-path, opacity, filter;
+	}
+
+	/* 图片初始按满屏 cover 撑住；就绪后控制器按自然尺寸写显式宽高，
+	   放大全程只用等比例 scale。 */
+	.mmz-blinds__finale-image {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		display: block;
+		width: 100vw;
+		height: 100vh;
+		object-fit: cover;
+		object-position: center;
+		user-select: none;
+		-webkit-user-drag: none;
+		will-change: transform, opacity, filter;
+	}
+
+	/* 终幕文字层：独立 fixed 层，盖在内容区之上；每帧由控制器按内容区
+	   顶缘实测写入位置，与「快速带你前往」同层同速上滑。 */
+	.mmz-finale-copy {
+		position: fixed;
+		inset: 0;
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem 1.5rem;
+		pointer-events: none;
+		opacity: 0;
+		visibility: hidden;
+		will-change: opacity, transform;
+	}
+
+	/* 白字与暗色描边属终幕图片上的可读性例外 */
+	.mmz-finale-copy__inner {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		color: #fff;
+		text-align: center;
+		text-shadow: 0 2px 12px rgb(0 0 0 / 48%);
+	}
+
+	.mmz-finale-copy__title {
+		margin: 0;
+		font-size: clamp(2.5rem, 6vw, 4.75rem);
+		font-weight: 700;
+		line-height: 1.08;
+		letter-spacing: 0.04em;
+	}
+
+	.mmz-finale-copy__subtitle {
+		margin: 0.9rem 0 0;
+		font-size: clamp(0.9rem, 1.4vw, 1.25rem);
+		font-weight: 500;
+		letter-spacing: 0.14em;
+	}
+
+	/* 终幕衔接占位：SSR 高度为 0，滚动时由控制器实测写入像素高度 */
+	.mmz-finale-spacer {
+		height: 0;
+	}
+
+	/* 内容区：无背景板，文字直接浮在终幕图模糊漂白后的页面上 */
+	.mmz-afterglow {
+		position: relative;
+		z-index: 2;
+		width: 100%;
+		padding-block: 4.5rem 6rem;
+	}
+
+	.mmz-afterglow__inner {
+		width: 100%;
+		max-width: 72rem;
+		margin-inline: auto;
+		padding-inline: clamp(1rem, 3vw, 1.75rem);
+	}
+
+	.mmz-afterglow__compass {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.mmz-afterglow__head {
+		text-align: center;
+	}
+
+	.mmz-afterglow__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		color: var(--on-surface);
+	}
+
+	.mmz-afterglow__subtitle {
+		margin: 0.45rem 0 0;
+		font-family: var(--font-sans);
+		font-size: 0.9rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-afterglow__nav {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem 1rem;
+		width: min(100%, 56rem);
+		margin-top: 2rem;
+	}
+
+	.mmz-afterglow__link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 0.65rem;
+		width: 100%;
+		max-width: 10rem;
+		min-width: 6.5rem;
+		padding: 0.75rem 1rem;
+		border: 1px solid transparent;
+		border-radius: var(--shape-corner-l);
+		color: var(--on-surface-variant);
+		font-family: var(--font-sans);
+		font-size: 0.875rem;
+		font-weight: 500;
+		white-space: nowrap;
+		text-decoration: none;
+		overflow: hidden;
+		transition:
+			color var(--m3e-duration-short) var(--m3e-easing-standard),
+			border-color var(--m3e-duration-short) var(--m3e-easing-standard),
+			translate var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-afterglow__link:hover {
+		border-color: var(--outline-variant);
+		color: var(--on-surface);
+		translate: 0 -2px;
+	}
+
+	.mmz-afterglow__link :global(svg) {
+		width: 1.15rem;
+		height: 1.15rem;
+		flex: none;
+		color: var(--on-surface);
+	}
+
+	.mmz-afterglow__notice {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: min(100%, 56rem);
+		margin: 2.5rem auto 0;
+		padding: 0.9rem 1.25rem;
+		border: 1px dashed color-mix(in oklab, var(--on-surface) 26%, transparent);
+		border-radius: var(--shape-corner-l);
+		color: var(--on-surface-variant);
+		font-family: var(--font-sans);
+		font-size: 0.85rem;
+		line-height: 1.6;
+	}
+
+	.mmz-afterglow__notice-icon {
+		flex: none;
+		width: 1.1rem;
+		height: 1.1rem;
+		color: var(--on-surface);
+	}
+
+	.mmz-afterglow__notice-text {
+		margin: 0;
+		min-width: 0;
+	}
+
+	.mmz-afterglow__notice-link {
+		flex: none;
+		color: var(--on-surface);
+		font-weight: 600;
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+
+	.mmz-afterglow__columns {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1.75rem;
+		margin-top: 2.25rem;
+		align-items: stretch;
+	}
+
+	/* ------------------------------------------------ 首页相册卡片堆叠 */
+
+	/* 中间卡片压在最上层，两侧按索引外扩并轻微旋转；
+	   悬停只做视觉抬起，导航由「查看相册」承担 */
+	.mmz-album {
+		margin-top: 3.5rem;
+	}
+
+	.mmz-album__head {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 1.5rem;
+	}
+
+	.mmz-album__intro {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.mmz-album__eyebrow {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: color-mix(in oklab, var(--on-surface) 55%, transparent);
+	}
+
+	.mmz-album__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: clamp(1.35rem, 2vw, 1.75rem);
+		font-weight: 800;
+		letter-spacing: 0.02em;
+		color: var(--on-surface);
+	}
+
+	.mmz-album__desc {
+		max-width: 34rem;
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 0.88rem;
+		line-height: 1.6;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-album__more {
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+		gap: 0.3rem;
+		padding-bottom: 0.2rem;
+		border-bottom: 1px solid
+			color-mix(in oklab, var(--on-surface) 35%, transparent);
+		color: var(--on-surface);
+		font-family: var(--font-sans);
+		font-size: 0.82rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition:
+			color var(--m3e-duration-short) var(--m3e-easing-standard),
+			border-color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-album__more:hover {
+		border-color: var(--primary);
+		color: var(--primary);
+	}
+
+	.mmz-album__more :global(svg) {
+		width: 0.95rem;
+		height: 0.95rem;
+	}
+
+	.mmz-album__stack {
+		position: relative;
+		height: clamp(15rem, 23vw, 19.5rem);
+		margin-top: 2rem;
+		transition: height var(--m3e-duration-medium)
+			var(--m3e-easing-emphasized-decelerate);
+	}
+
+	.mmz-album__card {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: clamp(9.5rem, 17vw, 13rem);
+		aspect-ratio: 3 / 4;
+		padding: 0;
+		overflow: hidden;
+		border: 1px solid color-mix(in oklab, var(--on-surface) 12%, transparent);
+		border-radius: var(--shape-corner-l);
+		background: var(--surface-container);
+		box-shadow: var(--m3e-elevation-2);
+		appearance: none;
+		cursor: pointer;
+		font: inherit;
+		color: inherit;
+		z-index: var(--stack-z, 1);
+		transform: translate(
+				calc(-50% + var(--stack-x, 0rem)),
+				calc(-50% + var(--stack-y, 0rem))
+			)
+			rotate(var(--stack-r, 0deg)) scale(var(--stack-s, 1));
+		transition:
+			transform var(--m3e-duration-medium) var(--m3e-easing-standard),
+			box-shadow var(--m3e-duration-medium) var(--m3e-easing-standard);
+	}
+
+	.mmz-album__card:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 3px;
+	}
+
+	.mmz-album__card img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	/* 悬停：抬起当前卡片、放大并把旋转归正，底部浮出标题——与参考组件的交互一致 */
+	.mmz-album__card:hover {
+		z-index: 50;
+		box-shadow: var(--m3e-elevation-4);
+		transform: translate(
+				calc(-50% + var(--stack-x, 0rem)),
+				calc(-50% + var(--stack-y, 0rem) - 1.6rem)
+			)
+			rotate(0deg) scale(calc(var(--stack-s, 1) + 0.14));
+	}
+
+	.mmz-album__caption {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		padding: 2.2rem 0.9rem 0.75rem;
+		background: linear-gradient(to top, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0));
+		color: #fff;
+		font-family: var(--font-sans);
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		opacity: 0;
+		transform: translateY(0.4rem);
+		transition:
+			opacity var(--m3e-duration-medium) var(--m3e-easing-standard),
+			transform var(--m3e-duration-medium) var(--m3e-easing-standard);
+	}
+
+	.mmz-album__card:hover .mmz-album__caption {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	/* 点击选中：被点的卡片放大成焦点图，其余缩成底部缩略图条；
+	   选中态里悬停不再抬起，避免把缩略图从条带上扯出来 */
+	.mmz-album__stack.is-selected .mmz-album__card:hover {
+		box-shadow: var(--m3e-elevation-2);
+		transform: translate(
+				calc(-50% + var(--stack-x, 0rem)),
+				calc(-50% + var(--stack-y, 0rem))
+			)
+			rotate(var(--stack-r, 0deg)) scale(var(--stack-s, 1));
+	}
+
+	.mmz-album__stack.is-selected .mmz-album__card.is-active {
+		box-shadow: var(--m3e-elevation-4);
+	}
+
+	.mmz-album__stack.is-selected .mmz-album__card.is-active .mmz-album__caption {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.mmz-album__stack.is-selected
+		.mmz-album__card:not(.is-active)
+		.mmz-album__caption {
+		opacity: 0;
+	}
+
+	.mmz-afterglow__col-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.mmz-afterglow__col-title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: 1.05rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		color: var(--on-surface);
+	}
+
+	.mmz-afterglow__more {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		color: var(--on-surface-variant);
+		font-size: 0.78rem;
+		text-decoration: none;
+		transition: color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-afterglow__more:hover {
+		color: var(--on-surface);
+	}
+
+	.mmz-afterglow__more :global(svg) {
+		width: 0.9rem;
+		height: 0.9rem;
+	}
+
+	/* 两列在栅格里等高拉伸：标题行占位固定，面板吃掉剩余高度，
+	   左右两张面板无论内容多少都收在同一条底边 */
+	.mmz-afterglow__col {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+	}
+
+	/* 面板：细描边、无底色（与公告/导览等块保持同一层平面），
+	   内部独立滚动，避免首页被长列表拉长 */
+	.mmz-afterglow__panel {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		flex-direction: column;
+		margin-top: 0.9rem;
+		padding: 0.6rem 0.75rem;
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--shape-corner-l);
+	}
+
+	.mmz-afterglow__list,
+	.mmz-afterglow__timeline {
+		flex: 1;
+		min-height: 0;
+		max-height: 25rem;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		scrollbar-width: thin;
+		list-style: none;
+	}
+
+	.mmz-afterglow__post-link {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+		padding: 0.7rem 0.5rem;
+		border-radius: var(--shape-corner-m);
+		color: inherit;
+		text-decoration: none;
+		transition: background-color var(--m3e-duration-short)
+			var(--m3e-easing-standard);
+	}
+
+	.mmz-afterglow__post-link:hover {
+		background: color-mix(in oklab, var(--surface-container) 60%, transparent);
+	}
+
+	.mmz-afterglow__post + .mmz-afterglow__post {
+		border-top: 1px solid color-mix(in oklab, var(--outline-variant) 60%, transparent);
+	}
+
+	.mmz-afterglow__index {
+		flex: none;
+		width: 1.6rem;
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.78rem;
+		font-weight: 700;
+		color: color-mix(in oklab, var(--on-surface) 45%, transparent);
+	}
+
+	.mmz-afterglow__thumb {
+		display: block;
+		width: 3.2rem;
+		height: 2.2rem;
+		flex: none;
+		border-radius: var(--shape-corner-s);
+		object-fit: cover;
+		background: var(--surface-container);
+	}
+
+	.mmz-afterglow__post-body {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.mmz-afterglow__post-title {
+		overflow: hidden;
+		font-family: var(--font-sans);
+		font-size: 0.9rem;
+		font-weight: 700;
+		line-height: 1.4;
+		color: var(--on-surface);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mmz-afterglow__post-meta {
+		display: flex;
+		align-items: baseline;
+		gap: 0.6rem;
+		min-width: 0;
+		font-size: 0.72rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-afterglow__post-meta time {
+		flex: none;
+		font-family: var(--m3e-font-mono-family);
+	}
+
+	.mmz-afterglow__post-desc {
+		overflow: hidden;
+		min-width: 0;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mmz-afterglow__category {
+		flex: none;
+		padding: 0.1rem 0.55rem;
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--shape-corner-full);
+		color: var(--on-surface-variant);
+		font-size: 0.68rem;
+		white-space: nowrap;
+	}
+
+	.mmz-afterglow__moment {
+		position: relative;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.2rem 0.6rem;
+		padding: 0.85rem 0.35rem 0.85rem 1.5rem;
+	}
+
+	/* 时间线竖线与节点圆点 */
+	.mmz-afterglow__moment::before {
+		content: "";
+		position: absolute;
+		top: 1.35rem;
+		bottom: 0;
+		left: 0.6rem;
+		width: 2px;
+		background: color-mix(in oklab, var(--on-surface) 16%, transparent);
+	}
+
+	.mmz-afterglow__moment:last-child::before {
+		bottom: auto;
+		height: 0.9rem;
+	}
+
+	.mmz-afterglow__dot {
+		position: absolute;
+		top: 1.05rem;
+		left: 0.28rem;
+		width: 0.65rem;
+		height: 0.65rem;
+		border: 2px solid var(--on-surface);
+		border-radius: 50%;
+		background: var(--card-bg);
+		box-sizing: border-box;
+	}
+
+	.mmz-afterglow__moment[data-pinned="true"] .mmz-afterglow__dot {
+		background: var(--on-surface);
+	}
+
+	.mmz-afterglow__moment-text {
+		display: -webkit-box;
+		flex: 1 1 12rem;
+		overflow: hidden;
+		min-width: 0;
+		font-family: var(--font-sans);
+		font-size: 0.85rem;
+		line-height: 1.6;
+		color: var(--on-surface);
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+	}
+
+	.mmz-afterglow__moment-date {
+		margin-left: auto;
+		font-family: var(--m3e-font-mono-family);
+		font-size: 0.7rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-afterglow__panel .mmz-card__empty {
+		padding: 1.5rem 0.5rem;
+	}
+
+	/* 减弱动效：首屏明信片落成静态图，不再挂收缩与横滑 */
 	@media (prefers-reduced-motion: reduce) {
-		.mmz-hero__link,
-		.mmz-data__card,
-		.mmz-data__arrow {
+		.mmz-blinds {
+			height: 100svh;
+		}
+
+		.mmz-blinds__stage {
+			position: relative;
+			width: 100%;
+			height: 100svh;
+			opacity: 1;
+			visibility: visible;
+		}
+
+		.mmz-blinds__background {
+			opacity: 1;
+			visibility: visible;
+		}
+
+		/* 静态回退：文字层随页面滚走而不是钉在视口上，终幕与衔接占位不存在 */
+		.mmz-blinds__hero {
+			position: absolute;
+		}
+
+		.mmz-blinds__reveal,
+		.mmz-blinds__scenes,
+		.mmz-blinds__finale,
+		.mmz-finale-copy,
+		.mmz-finale-spacer,
+		.mmz-dialogue {
+			display: none;
+		}
+
+		/* 悬浮卡只保留展开/收起，不再做位移过渡 */
+		.mmz-profile,
+		.mmz-profile[data-open="true"] {
+			transition: none;
+			transform: none;
+		}
+
+		/* 相册卡片不做抬起过渡 */
+		.mmz-album__card,
+		.mmz-album__card:hover {
 			transition: none;
 		}
 	}
 
-	/* 站内「减少动效」开关：与 prefers-reduced-motion 保持同一行为 */
-	:global(.motion-reduced) .mmz-hero__link,
-	:global(.motion-reduced) .mmz-data__card,
-	:global(.motion-reduced) .mmz-data__arrow {
-		transition: none;
+	/* 窄屏内容区：双栏折成单栏 */
+	@media (max-width: 1023.98px) {
+		.mmz-afterglow__columns {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
+
+	/* --------------------------------------------------------------- 断点 */
+
+	@media (max-width: 767.98px) {
+		/* 桌面影像层整段不占位：移动端由两屏版式接管 */
+		.mmz-blinds,
+		.mmz-dialogue,
+		.mmz-blinds__finale,
+		.mmz-finale-copy,
+		.mmz-finale-spacer,
+		.mmz-afterglow {
+			display: none;
+		}
+
+		.mmz-mobile {
+			display: block;
+		}
+
+		/* 移动端没有顶栏标题的悬停行为，个人信息卡整层不参与排版 */
+		.mmz-profile {
+			display: none;
+		}
+
+		/* 页脚折成单列：品牌与联系方式左对齐，备案与运行信息自上而下 */
+		.mmz-footer__top,
+		.mmz-footer__bottom {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.mmz-footer__contact {
+			width: 100%;
+			align-items: flex-start;
+		}
+
+		.mmz-footer__links {
+			justify-content: flex-start;
+		}
+
+		.mmz-footer__meta {
+			align-items: flex-start;
+		}
+	}
+
 </style>
+

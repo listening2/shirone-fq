@@ -234,7 +234,69 @@ export type Favicon = {
 export type ProfileConfig = {
 	avatar?: string;
 	name: string;
+	/** 首页影像层的英文式大标题；缺省回落到 name */
+	displayName?: string;
+	/** 首页影像层大标题上方的职业小字（如「[不会写代码 / 无技术博主]」） */
+	occupation?: string;
 	bio?: string;
+	/**
+	 * 首页影像层的补充文案。全部缺省时该文字层不渲染，
+	 * 保持「关闭即零负担」：无额外文案、无额外请求。
+	 */
+	homeHero?: {
+		/** 右上角胶囊标签 */
+		pillText?: string;
+		/** 右缘竖排主标题 */
+		verticalTitle?: string;
+		/** 右缘竖排副行（缺省用 name） */
+		verticalName?: string;
+		/** 右缘竖排尾行（与主标题用 ✦ 分隔） */
+		verticalCreative?: string;
+		/** 右下角竖排小字 */
+		footerText?: string;
+		/** 底部对话卡中文行 */
+		speechChinese?: string;
+		/** 底部对话卡英文行 */
+		speechEnglish?: string;
+		/** 终幕放大后居中显示的主标题 */
+		finaleTitle?: string;
+		/** 终幕主标题下方的副标题 */
+		finaleSubtitle?: string;
+	};
+	/**
+	 * 首页页脚补充信息。全部缺省时只保留可推导内容（品牌名 / 联系方式 /
+	 * 版权 / 运行天数），备案与自定义链接块不输出任何 DOM。
+	 */
+	homeFooter?: {
+		/** 手写体品牌名，缺省用 name */
+		brand?: string;
+		/** 品牌签名图（本地或远程），缺省用文字品牌名 */
+		logo?: string;
+		/** 标语，缺省用 bio */
+		tagline?: string;
+		/** 建站日期（YYYY-MM-DD），缺省用最早文章日期 */
+		since?: string;
+		/** ICP 备案号 */
+		icp?: { label: string; url?: string };
+		/** 公安备案号 */
+		police?: { label: string; url?: string };
+		/** 次级链接（隐私政策 / 用户协议等；Sitemap 与 RSS 自动生成） */
+		links?: { label: string; url: string }[];
+	};
+	/**
+	 * 首页相册卡片堆叠。缺省时展示第一个可见相册；
+	 * 相册页关闭或没有可见相册时整块不渲染。
+	 */
+	homeAlbum?: {
+		/** 指定相册 id，缺省或找不到时回退第一个可见相册 */
+		album?: string;
+		/** 展示标题，缺省用相册标题 */
+		title?: string;
+		/** 展示描述，缺省用相册描述 */
+		description?: string;
+		/** 堆叠卡片数量 3-7，默认 5 */
+		count?: number;
+	};
 	links: {
 		name: string;
 		url: string;

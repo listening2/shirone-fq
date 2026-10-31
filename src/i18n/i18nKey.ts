@@ -358,6 +358,7 @@ enum I18nKey {
 	texturePresetTopography = "texturePresetTopography",
 	texturePresetGeometric = "texturePresetGeometric",
 	texturePresetSakura = "texturePresetSakura",
+	texturePresetJigsaw = "texturePresetJigsaw",
 	textureOpacity = "textureOpacity",
 
 	layoutMode = "layoutMode",
@@ -365,6 +366,58 @@ enum I18nKey {
 	layoutGrid = "layoutGrid",
 	/** 显示设置 · 站点主题分区标题（主题包切换） */
 	siteTheme = "siteTheme",
+
+	// 主题首页导览（src/themes/*/pages/Home.astro 四卡分区）
+	/** 桌面端导览分区无障碍名 */
+	homeGuideAria = "homeGuideAria",
+	homeGuideStats = "homeGuideStats",
+	homeGuideStatsHint = "homeGuideStatsHint",
+	homeGuidePosts = "homeGuidePosts",
+	homeGuidePostsHint = "homeGuidePostsHint",
+	homeGuideIndex = "homeGuideIndex",
+	homeGuideIndexHint = "homeGuideIndexHint",
+	homeGuideContact = "homeGuideContact",
+	homeGuideContactHint = "homeGuideContactHint",
+	/** 移动端首页分区大字（精选 / 最新） */
+	homeMobileFeatured = "homeMobileFeatured",
+	homeMobileLatest = "homeMobileLatest",
+	/** Mmz 首页影像揭示层：入场标题与逐字祝福语 */
+	mmzBlindsHeadline = "mmzBlindsHeadline",
+	mmzBlindsMessage1 = "mmzBlindsMessage1",
+	mmzBlindsMessage2 = "mmzBlindsMessage2",
+	mmzBlindsMessage3 = "mmzBlindsMessage3",
+	mmzBlindsMessage4 = "mmzBlindsMessage4",
+	/** Mmz 首页影像层无障碍名称 */
+	mmzBlindsRevealAria = "mmzBlindsRevealAria",
+	mmzBlindsScenesAria = "mmzBlindsScenesAria",
+	/** Mmz 首页内容区：快速导航标题与副标题、双栏标题 */
+	mmzQuickAccess = "mmzQuickAccess",
+	mmzQuickAccessSubtitle = "mmzQuickAccessSubtitle",
+	mmzHomeRecent = "mmzHomeRecent",
+	mmzHomeMoments = "mmzHomeMoments",
+	/** Mmz 首页悬浮个人信息卡与页脚 */
+	mmzProfileAria = "mmzProfileAria",
+	mmzProfileHeatmapAria = "mmzProfileHeatmapAria",
+	mmzOtherSites = "mmzOtherSites",
+	mmzFooterContact = "mmzFooterContact",
+	mmzFooterLinksAria = "mmzFooterLinksAria",
+	/** 版权行：© {year} {name}. All Rights Reserved. */
+	mmzFooterCredit = "mmzFooterCredit",
+	/** 归属行：Powered by {framework} & {theme} */
+	mmzFooterPowered = "mmzFooterPowered",
+	/** 运行时长：本站已运行 {days} 天 {hours} 时 {minutes} 分 {seconds} 秒 */
+	mmzFooterRuntime = "mmzFooterRuntime",
+	/** 最后更新：最后更新于 {days} 天前 */
+	mmzFooterUpdated = "mmzFooterUpdated",
+	/** 首页相册区块小标题 */
+	mmzAlbumSection = "mmzAlbumSection",
+	/** 相册入口按钮：查看相册 */
+	mmzAlbumView = "mmzAlbumView",
+	/** 相册堆叠无障碍名称：「{title}」相册照片预览 */
+	mmzAlbumStackAria = "mmzAlbumStackAria",
+	/** Mmz 首页左下角角色对话 */
+	characterDialogue = "characterDialogue",
+	dialogueNext = "dialogueNext",
 
 	resetConfirmTitle = "resetConfirmTitle",
 	resetConfirmMessage = "resetConfirmMessage",

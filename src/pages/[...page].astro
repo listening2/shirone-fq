@@ -1,18 +1,29 @@
 ---
+import path from "node:path";
 import Pagination from "@components/molecules/Pagination.astro";
 import PostPage from "@components/organisms/PostPage.astro";
+import { scanVisibleAlbums } from "@utils/album-scanner";
+import { resolveImageAsset } from "@utils/asset-utils";
 import {
 	getCategoryList,
+	getRecentMomentItems,
 	getSortedPosts,
 	getTagList,
 } from "@utils/content-utils";
 import { formatDateToYYYYMMDD } from "@utils/date-utils";
+import { isPageAvailable } from "@utils/page-availability";
+import { getSiteStats } from "@utils/site-stats";
 import { isSiteThemeEnabled } from "@utils/site-theme";
-import { getPostUrl } from "@utils/url-utils";
+import { getPostUrl, getTagUrl } from "@utils/url-utils";
 import type { GetStaticPaths } from "astro";
 import { postListConfig } from "@/config/postListConfig";
+import { profileConfig } from "@/config/profileConfig";
 import { getHomeVariantCss, getHomeVariants } from "@/themes/pages";
-import type { ThemeHomeData } from "@/themes/types";
+import type {
+	ThemeHomeData,
+	ThemeHomeGalleryItem,
+	ThemeHomePostItem,
+} from "@/themes/types";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
 
 export const getStaticPaths = (async ({ paginate }) => {
@@ -33,16 +44,68 @@ const homeVariantCss = hasHomeVariants ? getHomeVariantCss() : "";
 
 let homeData: ThemeHomeData | undefined;
 if (hasHomeVariants) {
-	const [categories, tags, posts] = await Promise.all([
+	const [categories, tags, posts, siteStats, moments] = await Promise.all([
 		getCategoryList(),
 		getTagList(),
 		getSortedPosts(),
+		getSiteStats(),
+		isPageAvailable("moments") ? getRecentMomentItems(6) : Promise.resolve([]),
 	]);
 	const latest = posts[0];
+	const recent = await Promise.all(
+		posts.slice(0, 6).map((post) => toHomePost(post)),
+	);
+	const pinned = await Promise.all(
+		posts
+			.filter((post) => post.data.pinned)
+			.slice(0, 3)
+			.map((post) => toHomePost(post)),
+	);
+	const gallery = recent
+		.flatMap((post) => (post.cover ? [post.cover] : []))
+		.slice(0, 6);
+
+	/* 首页相册卡片堆叠：配置指定 id 优先，缺省/找不到时用第一个可见相册；
+	   加密相册不参与挑选，避免把需要输密码的照片暴露到首页；
+	   卡片数量限制在 3-7，封面排在最前并按地址去重 */
+	const albumOptions = profileConfig.homeAlbum;
+	const visibleAlbums = isPageAvailable("albums")
+		? scanVisibleAlbums().filter((item) => !item.password)
+		: [];
+	const featuredAlbum = albumOptions?.album
+		? (visibleAlbums.find((album) => album.id === albumOptions.album) ??
+			visibleAlbums[0])
+		: visibleAlbums[0];
+	const albumCount = Math.min(7, Math.max(3, albumOptions?.count ?? 5));
+	const albumSources = featuredAlbum
+		? [
+				featuredAlbum.cover,
+				...featuredAlbum.photos.map((photo) => photo.thumbnail ?? photo.src),
+			]
+				.filter(
+					(src, index, list) => Boolean(src) && list.indexOf(src) === index,
+				)
+				.slice(0, albumCount)
+		: [];
+	const albumPhotos: ThemeHomeGalleryItem[] = albumSources.map((src) => ({
+		src,
+	}));
+	const album = featuredAlbum
+		? {
+				id: featuredAlbum.id,
+				title: albumOptions?.title ?? featuredAlbum.title,
+				description:
+					(albumOptions?.description ?? featuredAlbum.description) || undefined,
+				date: featuredAlbum.date,
+				photoCount: featuredAlbum.photos.length,
+				photos: albumPhotos,
+			}
+		: undefined;
 	homeData = {
-		posts: page.total,
+		posts: siteStats.posts,
 		categories: categories.length,
 		tags: tags.length,
+		words: siteStats.words,
 		latest: latest
 			? {
 					title: latest.data.title,
@@ -50,6 +113,59 @@ if (hasHomeVariants) {
 					date: formatDateToYYYYMMDD(latest.data.published),
 				}
 			: undefined,
+		gallery,
+		recent,
+		pinned,
+		topCategories: [...categories]
+			.sort((a, b) => b.count - a.count)
+			.slice(0, 4),
+		topTags: [...tags]
+			.sort((a, b) => b.count - a.count)
+			.slice(0, 6)
+			.map((tag) => ({
+				name: tag.name,
+				count: tag.count,
+				url: getTagUrl(tag.name),
+			})),
+		moments: moments.map((moment) => ({
+			id: moment.id,
+			excerpt: moment.excerpt,
+			date: formatDateToYYYYMMDD(new Date(moment.published)),
+			iso: moment.published,
+			pinned: moment.pinned,
+			hasImage: moment.hasImage,
+		})),
+		postDates: posts.map((post) => formatDateToYYYYMMDD(post.data.published)),
+		album,
+	};
+}
+
+/** 首页文章卡片：标题 / 链接 / 日期与封面一次解析，主题页不再访问内容集合。 */
+async function toHomePost(
+	post: Awaited<ReturnType<typeof getSortedPosts>>[number],
+): Promise<ThemeHomePostItem> {
+	const image = post.data.image;
+	let cover: ThemeHomeGalleryItem | undefined;
+	if (image) {
+		const basePath = post.filePath
+			? path.relative(path.resolve("src"), path.dirname(post.filePath))
+			: "";
+		const asset = await resolveImageAsset(image, basePath);
+		if (typeof asset === "string") {
+			// 本地相对路径解析失败时 asset-utils 会原样返回，只在可确定可用时采用
+			if (/^(?:\/|https?:|data:)/i.test(asset)) cover = { src: asset };
+		} else {
+			cover = { src: asset.src, width: asset.width, height: asset.height };
+		}
+	}
+	return {
+		title: post.data.title,
+		url: getPostUrl(post),
+		date: formatDateToYYYYMMDD(post.data.published),
+		description: post.data.description || undefined,
+		category: post.data.category ?? undefined,
+		pinned: Boolean(post.data.pinned),
+		cover,
 	};
 }
 ---

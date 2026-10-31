@@ -102,7 +102,7 @@ export const siteConfig: SiteConfig = withUserConfig("site", {
 |---|---|
 | `footerConfig.ts` | 页脚自定义 HTML 注入开关（控制是否读取并注入 `src/config/FooterConfig.html`，关闭时零开销） |
 | `siteConfig.ts` | 站点部署 URL / base 路径 / 标题标识 / 语言 / IANA 时区 / HCT 主题色 / 背景纹理系统 / 显示设置浮层开关 / **统一页面开关 `pages`（14 个内容页，关闭时路由 404 且导航入口自动隐藏，判定见 `src/utils/page-availability.ts`）** / 横幅（首页标题下快捷入口 `homeText.links`、按需加载的横幅背景视频 `video`——`enable: false` 时零 DOM 零控件）/ TOC 深度 / 进度条 / favicon（含 `getDefaultStyle` / `getDefaultSpec` / `resolveDisplaySettings` 回退值） |
-| `profileConfig.ts` | 博主资料：头像 / 名称 / 简介 / 社交链接 |
+| `profileConfig.ts` | 博主资料：头像 / 名称 / 简介 / 社交链接；首页展示层补充文案（`homeHero` 大标题/终幕、`homeFooter` 品牌/标语/备案、`homeAlbum` 相册卡片堆叠——缺省展示第一个可见相册） |
 | `licenseConfig.ts` | 文章版权声明 |
 | `expressiveCodeConfig.ts` | 代码块明暗主题 |
 | `navBarConfig.ts` | 导航栏链接（`LinkPresets` 预设表 + 组装；导出前统一按页面可用性过滤——指向被 `siteConfig.pages` 或行为领域 enable 关闭页面的条目自动隐藏，空分组整组隐藏） |

@@ -13,12 +13,18 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 	test("02. 默认纹理预设与数据载体正确同步", async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		const html = page.locator("html");
-		await expect(html).toHaveAttribute("data-texture-preset", "starlight");
+		// 站点可通过 site.yaml 覆盖默认预设，断言应跟随配置而不是写死某个值
+		const defaultPreset = await page.evaluate(() =>
+			import("/src/utils/setting-utils.ts").then((mod) =>
+				mod.getDefaultTexturePreset(),
+			),
+		);
+		await expect(html).toHaveAttribute("data-texture-preset", defaultPreset);
 
 		const configCarrier = page.locator("#config-carrier");
 		await expect(configCarrier).toHaveAttribute(
 			"data-texture-preset",
-			"starlight",
+			defaultPreset,
 		);
 		await expect(configCarrier).toHaveAttribute("data-texture-opacity", "0.12");
 	});
@@ -45,7 +51,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 
 		// 切换预设为 cyber-dots
 		await page.evaluate(() => {
-			import("/src/utils/setting-utils.ts").then((mod) => {
+			return import("/src/utils/setting-utils.ts").then((mod) => {
 				mod.setTexturePreset("cyber-dots");
 			});
 		});
@@ -68,7 +74,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
 		await page.evaluate(() => {
-			import("/src/utils/setting-utils.ts").then((mod) => {
+			return import("/src/utils/setting-utils.ts").then((mod) => {
 				mod.setTextureOpacity(0.2);
 			});
 		});
@@ -84,7 +90,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 		expect(storedOpacity).toBe("0.2");
 	});
 
-	test("05. 全部 6 种预设类型均可正确应用", async ({ page }) => {
+	test("05. 全部 7 种预设类型均可正确应用", async ({ page }) => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		const presets = [
 			"none",
@@ -93,11 +99,12 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 			"topography",
 			"geometric",
 			"sakura",
+			"jigsaw",
 		] as const;
 
 		for (const preset of presets) {
 			await page.evaluate((p) => {
-				import("/src/utils/setting-utils.ts").then((mod) => {
+				return import("/src/utils/setting-utils.ts").then((mod) => {
 					mod.setTexturePreset(p);
 				});
 			}, preset);
@@ -124,6 +131,13 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 			});
 		}
 
+		// 全屏壁纸模式会默认停在「壁纸」页，纹理选项在「外观」页，先切回去
+		const appearanceTab = page
+			.locator('#display-setting [role="tab"]')
+			.filter({ hasText: "外观" })
+			.first();
+		if (await appearanceTab.count()) await appearanceTab.click();
+
 		// 找到 topography 纹理预设按钮并点击
 		const topographyBtn = page.locator(
 			'#display-setting button[role="radio"][aria-label*="Topography"], #display-setting button[role="radio"][aria-label*="流光等高线"], #display-setting button[role="radio"][aria-label*="等高線"]',
@@ -143,10 +157,15 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 		await expect(resetBtn).toBeVisible();
 		await resetBtn.click();
 
-		// 重置后回到默认 starlight
+		// 重置后回到站点配置的默认预设
+		const defaultPreset = await page.evaluate(() =>
+			import("/src/utils/setting-utils.ts").then((mod) =>
+				mod.getDefaultTexturePreset(),
+			),
+		);
 		await expect(page.locator("html")).toHaveAttribute(
 			"data-texture-preset",
-			"starlight",
+			defaultPreset,
 		);
 	});
 
@@ -155,7 +174,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 
 		// 启用 reduced motion
 		await page.evaluate(() => {
-			import("/src/utils/setting-utils.ts").then((mod) => {
+			return import("/src/utils/setting-utils.ts").then((mod) => {
 				mod.setMotionPreference(true);
 			});
 		});
@@ -169,7 +188,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 
 		// 切换到 geometric
 		await page.evaluate(() => {
-			import("/src/utils/setting-utils.ts").then((mod) => {
+			return import("/src/utils/setting-utils.ts").then((mod) => {
 				mod.setTexturePreset("geometric");
 			});
 		});
@@ -198,7 +217,7 @@ test.describe("M3E Ambient Texture & Pattern System", () => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
 		await page.evaluate(() => {
-			import("/src/utils/setting-utils.ts").then((mod) => {
+			return import("/src/utils/setting-utils.ts").then((mod) => {
 				mod.setTexturePreset("none");
 			});
 		});

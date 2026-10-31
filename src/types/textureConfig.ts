@@ -5,7 +5,8 @@ export type TexturePreset =
 	| "cyber-dots" // 极客点阵与准星
 	| "topography" // 流光等高线波纹
 	| "geometric" // M3E 晶体折纸
-	| "sakura"; // 落樱微瓣飘落
+	| "sakura" // 落樱微瓣飘落
+	| "jigsaw"; // 拼图底纹
 
 /** 纹理配置契约 */
 export interface TextureConfig {

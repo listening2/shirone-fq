@@ -87,6 +87,18 @@ html[data-texture-preset="sakura"] #m3e-texture-canvas {
 	animation: m3e-texture-sakura-fall 28s linear infinite;
 }
 
+/* 06. Jigsaw (拼图底纹)：复刻首页那层拼图蒙版（224px 周期、56px 拼图块、
+   卡榫与凹槽交替），在这里内联成自包含的 data URI，不依赖主题私有资源 */
+html[data-texture-preset="jigsaw"] #m3e-texture-canvas {
+	background: linear-gradient(135deg, var(--on-surface) 0%, var(--on-surface-variant) 100%);
+	-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22224%22%20height%3D%22224%22%20viewBox%3D%220%200%20224%20224%22%3E%3Cdefs%3E%3Cpath%20id%3D%22edge%22%20d%3D%22M0%200H18C21%200%2023%202%2021%204C18%207%2018%2012%2023%2013C26%2014%2030%2014%2033%2013C38%2012%2038%207%2035%204C33%202%2035%200%2038%200H74C77%200%2079-2%2077-4C74-7%2074-12%2079-13C82-14%2086-14%2089-13C94-12%2094-7%2091-4C89-2%2091%200%2094%200H112%22%2F%3E%3Cpattern%20id%3D%22puzzle%22%20width%3D%22112%22%20height%3D%22112%22%20patternUnits%3D%22userSpaceOnUse%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%220.8%22%20stroke-linejoin%3D%22round%22%3E%3Cuse%20href%3D%22%23edge%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(0%2056)%20scale(1%20-1)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(0%20112)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22rotate(90)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(56%200)%20rotate(90)%20scale(1%20-1)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(112%200)%20rotate(90)%22%2F%3E%3C%2Fg%3E%3C%2Fpattern%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url(%23puzzle)%22%20d%3D%22M0%200H224V224H0Z%22%2F%3E%3C%2Fsvg%3E");
+	mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22224%22%20height%3D%22224%22%20viewBox%3D%220%200%20224%20224%22%3E%3Cdefs%3E%3Cpath%20id%3D%22edge%22%20d%3D%22M0%200H18C21%200%2023%202%2021%204C18%207%2018%2012%2023%2013C26%2014%2030%2014%2033%2013C38%2012%2038%207%2035%204C33%202%2035%200%2038%200H74C77%200%2079-2%2077-4C74-7%2074-12%2079-13C82-14%2086-14%2089-13C94-12%2094-7%2091-4C89-2%2091%200%2094%200H112%22%2F%3E%3Cpattern%20id%3D%22puzzle%22%20width%3D%22112%22%20height%3D%22112%22%20patternUnits%3D%22userSpaceOnUse%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%220.8%22%20stroke-linejoin%3D%22round%22%3E%3Cuse%20href%3D%22%23edge%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(0%2056)%20scale(1%20-1)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(0%20112)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22rotate(90)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(56%200)%20rotate(90)%20scale(1%20-1)%22%2F%3E%3Cuse%20href%3D%22%23edge%22%20transform%3D%22translate(112%200)%20rotate(90)%22%2F%3E%3C%2Fg%3E%3C%2Fpattern%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url(%23puzzle)%22%20d%3D%22M0%200H224V224H0Z%22%2F%3E%3C%2Fsvg%3E");
+	-webkit-mask-size: 224px 224px;
+	mask-size: 224px 224px;
+	-webkit-mask-repeat: repeat;
+	mask-repeat: repeat;
+}
+
 /* 动效关键帧 */
 @keyframes m3e-texture-starlight-float {
 	0%, 100% {

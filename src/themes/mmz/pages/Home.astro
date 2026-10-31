@@ -3750,3 +3750,19 @@ const compact = (value: number) =>
 
 </style>
 
+<style is:global>
+	/* 首页影像层是 fixed 全屏层。Swup 的入场动画与 onload-animation 会给
+	   #swup-container / #content-wrapper 加 transform，而 transform 会把
+	   fixed 子元素改成相对该容器定位，首帧就闪出一张错位、缩小的大图。
+	   首页不参与这两段入场动画，影像层从第一帧起就贴住视口。 */
+	html.is-changing main#swup-container[data-current-page="home"],
+	html.is-animating main#swup-container[data-current-page="home"],
+	main#swup-container[data-current-page="home"],
+	main#swup-container[data-current-page="home"] #content-wrapper {
+		transition: none;
+		animation: none;
+		opacity: 1;
+		transform: none;
+	}
+</style>
+

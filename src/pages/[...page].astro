@@ -1,10 +1,19 @@
 ---
 import Pagination from "@components/molecules/Pagination.astro";
 import PostPage from "@components/organisms/PostPage.astro";
+import {
+	getCategoryList,
+	getSortedPosts,
+	getTagList,
+} from "@utils/content-utils";
+import { formatDateToYYYYMMDD } from "@utils/date-utils";
+import { isSiteThemeEnabled } from "@utils/site-theme";
+import { getPostUrl } from "@utils/url-utils";
 import type { GetStaticPaths } from "astro";
 import { postListConfig } from "@/config/postListConfig";
+import { getHomeVariantCss, getHomeVariants } from "@/themes/pages";
+import type { ThemeHomeData } from "@/themes/types";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
-import { getSortedPosts } from "../utils/content-utils";
 
 export const getStaticPaths = (async ({ paginate }) => {
 	const allBlogPosts = await getSortedPosts();
@@ -15,9 +24,61 @@ export const getStaticPaths = (async ({ paginate }) => {
 const { page } = Astro.props;
 
 const len = page.data.length;
+
+// 站点主题首页变体：关闭时下面的包装层与额外样式完全不输出，首页字节与现状一致
+const siteThemeEnabled = isSiteThemeEnabled();
+const homeVariants = siteThemeEnabled ? getHomeVariants() : [];
+const hasHomeVariants = homeVariants.length > 0;
+const homeVariantCss = hasHomeVariants ? getHomeVariantCss() : "";
+
+let homeData: ThemeHomeData | undefined;
+if (hasHomeVariants) {
+	const [categories, tags, posts] = await Promise.all([
+		getCategoryList(),
+		getTagList(),
+		getSortedPosts(),
+	]);
+	const latest = posts[0];
+	homeData = {
+		posts: page.total,
+		categories: categories.length,
+		tags: tags.length,
+		latest: latest
+			? {
+					title: latest.data.title,
+					url: getPostUrl(latest),
+					date: formatDateToYYYYMMDD(latest.data.published),
+				}
+			: undefined,
+	};
+}
 ---
 
 <MainGridLayout page="home">
-    <PostPage page={page}></PostPage>
-    <Pagination class="mx-auto onload-animation" page={page} style={`animation-delay: calc(var(--content-delay) + ${(len)*50}ms)`}></Pagination>
+	{homeVariantCss && (
+		<style
+			is:inline
+			slot="head"
+			data-swup-optional="theme-home"
+			set:html={homeVariantCss}
+		></style>
+	)}
+
+	{hasHomeVariants ? (
+		<div data-theme-page="default">
+			<PostPage page={page}></PostPage>
+			<Pagination class="mx-auto onload-animation" page={page} style={`animation-delay: calc(var(--content-delay) + ${(len)*50}ms)`}></Pagination>
+		</div>
+	) : (
+		<Fragment>
+			<PostPage page={page}></PostPage>
+			<Pagination class="mx-auto onload-animation" page={page} style={`animation-delay: calc(var(--content-delay) + ${(len)*50}ms)`}></Pagination>
+		</Fragment>
+	)}
+
+	{homeData && homeVariants.map(({ id, Component }) => (
+		<div data-theme-page={id}>
+			<Component data={homeData} />
+		</div>
+	))}
 </MainGridLayout>

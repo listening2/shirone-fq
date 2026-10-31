@@ -1,0 +1,316 @@
+---
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+import { url } from "@utils/url-utils";
+import { Icon } from "astro-icon/components";
+import { profileConfig, siteConfig } from "@/config";
+import type { ThemeHomeData } from "../../types";
+
+/**
+ * Mmz 风格首页变体（静态版）。
+ *
+ * 只还原 MmzMing 首页的两层视觉：字标 Hero + 数据导览卡。
+ * 不搬 GSAP / 滚动叙事 / canvas 雨珠；所有文案来自配置与 i18n，
+ * 不硬编码任何用户可见文本。样式仅在本变体内生效，不污染默认首页。
+ */
+interface Props {
+	data: ThemeHomeData;
+}
+
+const { data } = Astro.props;
+
+const name = profileConfig.name;
+// 字标背景的幽灵首字母：取站点名首字符，纯装饰，已对无障碍隐藏
+const initial = name.trim().charAt(0).toUpperCase() || "S";
+
+const cards = [
+	{
+		href: url("/archive/"),
+		value: String(data.posts),
+		label: i18n(I18nKey.statsPosts),
+		icon: "material-symbols:article-outline-rounded",
+	},
+	{
+		href: url("/categories/"),
+		value: String(data.categories),
+		label: i18n(I18nKey.categories),
+		icon: "material-symbols:category-outline-rounded",
+	},
+	{
+		href: url("/tags/"),
+		value: String(data.tags),
+		label: i18n(I18nKey.tags),
+		icon: "material-symbols:tag-outline-rounded",
+	},
+	{
+		href: data.latest?.url ?? url("/archive/"),
+		value: data.latest?.date ?? i18n(I18nKey.noData),
+		label: i18n(I18nKey.recentPosts),
+		icon: "material-symbols:schedule-rounded",
+	},
+];
+---
+
+<div class="mmz-home">
+	<section class="mmz-hero" aria-labelledby="mmz-home-title">
+		<span class="mmz-hero__ghost" aria-hidden="true">{initial}</span>
+		<h1 id="mmz-home-title" class="mmz-hero__title">{name}</h1>
+		<p class="mmz-hero__subtitle">[{siteConfig.subtitle}]</p>
+		<p class="mmz-hero__bio">{profileConfig.bio}</p>
+		{profileConfig.links.length > 0 && (
+			<ul class="mmz-hero__links" aria-label={i18n(I18nKey.aboutSocialAria)}>
+				{profileConfig.links.map((link) => (
+					<li>
+						<a
+							class="mmz-hero__link"
+							href={link.url}
+							target="_blank"
+							rel="me noopener"
+							title={link.name}
+							aria-label={link.name}
+						>
+							<Icon name={link.icon} />
+						</a>
+					</li>
+				))}
+			</ul>
+		)}
+	</section>
+
+	<section class="mmz-data" aria-label={i18n(I18nKey.stats)}>
+		{cards.map((card) => (
+			<a class="mmz-data__card" href={card.href}>
+				<Icon name={card.icon} class="mmz-data__icon" />
+				<span class="mmz-data__value">{card.value}</span>
+				<span class="mmz-data__label">{card.label}</span>
+				<Icon
+					name="material-symbols:arrow-outward-rounded"
+					class="mmz-data__arrow"
+				/>
+			</a>
+		))}
+	</section>
+</div>
+
+<style>
+	/* 门户容器：与内容列保持同一留白节奏 */
+	.mmz-home {
+		display: flex;
+		flex-direction: column;
+		gap: var(--m3e-space-4);
+		padding-block: var(--m3e-space-6);
+	}
+
+	/* 字标 Hero：细描边 + 极淡网格底纹，零饱和度由 mmz 皮肤令牌统一提供 */
+	.mmz-hero {
+		position: relative;
+		isolation: isolate;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		align-items: flex-start;
+		gap: var(--m3e-space-3);
+		min-height: clamp(18rem, 42vh, 28rem);
+		padding: clamp(1.5rem, 4vw, 3rem);
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--shape-corner-xl);
+		background-color: var(--card-bg);
+		background-image:
+			linear-gradient(
+				color-mix(in srgb, var(--on-surface) 5%, transparent) 1px,
+				transparent 1px
+			),
+			linear-gradient(
+				90deg,
+				color-mix(in srgb, var(--on-surface) 5%, transparent) 1px,
+				transparent 1px
+			);
+		background-size: 3rem 3rem;
+	}
+
+	/* 幽灵首字母：描边空心字，压在标题后方，纯装饰 */
+	.mmz-hero__ghost {
+		position: absolute;
+		z-index: -1;
+		left: -0.06em;
+		bottom: -0.3em;
+		font-family: var(--font-sans);
+		font-size: clamp(9rem, 28vw, 18rem);
+		font-weight: 800;
+		line-height: 0.8;
+		letter-spacing: -0.06em;
+		color: transparent;
+		-webkit-text-stroke: 1px
+			color-mix(in srgb, var(--on-surface) 22%, transparent);
+		user-select: none;
+		pointer-events: none;
+	}
+
+	/* 同步补一个非 WebKit 的 text-stroke 回退（不支持时保持透明，不产生实心色块） */
+	.mmz-hero__ghost {
+		text-stroke: 1px color-mix(in srgb, var(--on-surface) 22%, transparent);
+	}
+
+	/* 展示级字号：M3E 阶梯上限为 headline-medium，门户字标需要更大的
+	   内容型展示字号，这里是经过评审的局部例外（不影响正文与组件文字） */
+	.mmz-hero__title {
+		margin: 0;
+		font-family: var(--font-sans);
+		font-size: clamp(2.5rem, 7vw, 4.75rem);
+		font-weight: 800;
+		line-height: 1.02;
+		letter-spacing: -0.045em;
+		color: var(--on-surface);
+		overflow-wrap: anywhere;
+	}
+
+	.mmz-hero__subtitle {
+		margin: 0;
+		font: var(--m3e-type-title-medium);
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-hero__bio {
+		max-width: 42ch;
+		margin: 0;
+		font: var(--m3e-type-body-large);
+		color: var(--on-surface-variant);
+		overflow-wrap: anywhere;
+	}
+
+	.mmz-hero__links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--m3e-space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.mmz-hero__link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--shape-corner-full);
+		color: var(--on-surface);
+		transition:
+			background-color var(--m3e-duration-short) var(--m3e-easing-standard),
+			border-color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-hero__link:hover {
+		background: var(--surface-container);
+		border-color: var(--outline);
+	}
+
+	.mmz-hero__link:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	.mmz-hero__link :global(svg) {
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	/* 数据导览层：2×2 → 四列，数值使用同一展示字号例外 */
+	.mmz-data {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--m3e-space-3);
+	}
+
+	@media (min-width: 768px) {
+		.mmz-data {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+
+	.mmz-data__card {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: var(--m3e-space-1);
+		padding: var(--m3e-space-4);
+		border: 1px solid var(--outline-variant);
+		border-radius: var(--shape-corner-l);
+		background: var(--card-bg);
+		color: var(--on-surface);
+		text-decoration: none;
+		transition:
+			background-color var(--m3e-duration-short) var(--m3e-easing-standard),
+			border-color var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-data__card:hover {
+		background: var(--surface-container);
+		border-color: var(--outline);
+	}
+
+	.mmz-data__card:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	.mmz-data__icon {
+		width: 1.25rem;
+		height: 1.25rem;
+		color: var(--on-surface-variant);
+	}
+
+	.mmz-data__value {
+		margin-top: var(--m3e-space-2);
+		font-family: var(--font-sans);
+		font-size: clamp(1.75rem, 4vw, 2.5rem);
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		overflow-wrap: anywhere;
+	}
+
+	.mmz-data__label {
+		font: var(--m3e-type-label-medium);
+		color: var(--on-surface-variant);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.mmz-data__arrow {
+		position: absolute;
+		top: var(--m3e-space-4);
+		right: var(--m3e-space-4);
+		width: 1.125rem;
+		height: 1.125rem;
+		color: var(--on-surface-variant);
+		opacity: 0;
+		transform: translate(-0.25rem, 0.25rem);
+		transition:
+			opacity var(--m3e-duration-short) var(--m3e-easing-standard),
+			transform var(--m3e-duration-short) var(--m3e-easing-standard);
+	}
+
+	.mmz-data__card:hover .mmz-data__arrow,
+	.mmz-data__card:focus-visible .mmz-data__arrow {
+		opacity: 1;
+		transform: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.mmz-hero__link,
+		.mmz-data__card,
+		.mmz-data__arrow {
+			transition: none;
+		}
+	}
+
+	/* 站内「减少动效」开关：与 prefers-reduced-motion 保持同一行为 */
+	:global(.motion-reduced) .mmz-hero__link,
+	:global(.motion-reduced) .mmz-data__card,
+	:global(.motion-reduced) .mmz-data__arrow {
+		transition: none;
+	}
+</style>

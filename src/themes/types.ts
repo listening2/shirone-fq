@@ -22,3 +22,25 @@ export type SiteThemeDefinition = {
 	 */
 	wallpaper?: "inherit" | "none";
 };
+
+/**
+ * 主题首页变体可消费的构建期数据。
+ *
+ * 数据由路由层（`src/pages/[...page].astro`）组装后作为 props 传入，
+ * 主题页面只负责展示，不直接查询内容集合，避免主题里长出第二套数据层。
+ */
+export type ThemeHomeData = {
+	/** 文章总数 */
+	posts: number;
+	/** 分类总数 */
+	categories: number;
+	/** 标签总数 */
+	tags: number;
+	/** 最新文章（站点无文章时缺省） */
+	latest?: {
+		title: string;
+		url: string;
+		/** 已按站点时区格式化的日历日期（YYYY-MM-DD） */
+		date: string;
+	};
+};

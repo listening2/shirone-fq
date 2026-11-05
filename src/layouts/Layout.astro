@@ -8,6 +8,7 @@ import {
 	getDefaultSpec,
 	getDefaultStyle,
 	profileConfig,
+	randomCoverConfig,
 	resolvedFontOptions,
 	resolveTextureOptions,
 	resolveUmamiOptions,
@@ -136,6 +137,17 @@ const hasMonoFont =
 		<style is:inline>@layer properties, theme, base, components, utilities;</style>
 
 		<title>{pageTitle}</title>
+
+		{/* 随机封面 API 预连接：仅启用时注入，提前完成 DNS+TLS 握手，降低首屏封面延迟 */}
+		{randomCoverConfig.enable && randomCoverConfig.endpoint && (() => {
+			const origin = new URL(randomCoverConfig.endpoint).origin;
+			return (
+				<>
+					<link rel="preconnect" href={origin} crossorigin />
+					<link rel="dns-prefetch" href={origin} />
+				</>
+			);
+		})()}
 
 		<meta charset="UTF-8" />
 		<meta name="description" content={description || pageTitle}>

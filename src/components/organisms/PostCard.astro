@@ -11,6 +11,7 @@ import PostCard from "@components/atoms/blog/PostCard.astro";
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 import { formatDateToYYYYMMDD } from "@utils/date-utils";
+import { extractFirstImageFromBody } from "@utils/first-body-image";
 import { isEncryptedPost } from "@utils/post-encryption";
 import { getProjectImageLoader } from "@utils/project-images";
 import { randomCoverUrlWithSeed } from "@utils/random-cover";
@@ -58,18 +59,29 @@ const imageBasePath = entry.filePath
 
 const { remarkPluginFrontmatter } = await render(entry);
 
+const isEncrypted = isEncryptedPost(entry.data);
+
+// 封面回退链：frontmatter image > randomCover 随机图（启用时）> 正文首图（仅 randomCover 关闭时的老兜底）> 纯文字
+// randomCover 启用时不再提取正文首图：正文插图是内容配图，不应抢占封面（Firefly 行为）
+const randomCoverOptions = resolveRandomCoverOptions(randomCoverConfig);
+const fallbackImage =
+	!image && !isEncrypted && !randomCoverOptions
+		? extractFirstImageFromBody(entry.body)
+		: undefined;
+const coverFromFallback = !image && fallbackImage !== undefined;
+
 // 解析封面：本地相对路径 → 构建产物 URL（与 ImageWrapper 同法）
-let coverUrl = image;
+let coverUrl: string | undefined = image || fallbackImage;
 let coverSrcset: string | undefined;
 let coverAvifSrcset: string | undefined;
 let coverWidth: number | undefined;
 let coverHeight: number | undefined;
-if (image) {
+if (coverUrl) {
 	const isLocal = !(
-		image.startsWith("/") ||
-		image.startsWith("http") ||
-		image.startsWith("https") ||
-		image.startsWith("data:")
+		coverUrl.startsWith("/") ||
+		coverUrl.startsWith("http") ||
+		coverUrl.startsWith("https") ||
+		coverUrl.startsWith("data:")
 	);
 	if (isLocal) {
 		const files = import.meta.glob<ImageMetadata>(
@@ -79,10 +91,10 @@ if (image) {
 			},
 		);
 		const normalizedPath = path
-			.normalize(path.join("../../", imageBasePath, image))
+			.normalize(path.join("../../", imageBasePath, coverUrl))
 			.replace(/\\/g, "/");
 		const file =
-			files[normalizedPath] ?? getProjectImageLoader(image, imageBasePath);
+			files[normalizedPath] ?? getProjectImageLoader(coverUrl, imageBasePath);
 		if (file) {
 			const mod = await file();
 			try {
@@ -118,14 +130,14 @@ if (image) {
 			} catch {
 				coverUrl = (mod as unknown as { src: string }).src;
 			}
+		} else if (coverFromFallback) {
+			// 正文首图无法解析（引用式图片 / 不存在的路径）→ 回退为无封面，交给 randomCover 或纯文字
+			coverUrl = undefined;
 		}
 	}
 }
 
-// 无封面回退：randomCover 开启时使用图床随机图 + 本地兜底图（关闭态保持原行为，短路为 null）
-const randomCoverOptions = coverUrl
-	? null
-	: resolveRandomCoverOptions(randomCoverConfig);
+// 无封面回退：randomCover 开启时使用图床随机图 + 本地兜底图（关闭态保持原行为）
 const randomCover = randomCoverOptions
 	? {
 			src: randomCoverUrlWithSeed(randomCoverOptions.randomUrl, entry.id),
@@ -137,8 +149,6 @@ const categoryLink = category
 	? { name: category, href: getCategoryUrl(category) }
 	: null;
 const tagLinks = tags.map((t) => ({ name: t.trim(), href: getTagUrl(t) }));
-
-const isEncrypted = isEncryptedPost(entry.data);
 const words = remarkPluginFrontmatter.words ?? 0;
 const wordCount =
 	isEncrypted && entry.data.hideHomeContent

@@ -82,6 +82,15 @@ jobs:
         working-directory: theme
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      # 配置类型校验会跟随 user-config.ts 的 import 读取 src/data/*.ts，
+      # 而这些物化产物被 gitignore，全新检出的主题仓里并不存在，
+      # 直接跑 --dry-run 校验会误报 TS2307。先物化一次，让类型校验有文件可读。
+      - name: Materialize content
+        working-directory: theme
+        env:
+          CONTENT_DIR: ${{ github.workspace }}/content
+        run: pnpm content:sync
+
       # 第一关：目录结构、keep 冲突、写入构建期生成物路径等契约问题，
       # 外加 config/*.yaml 的类型校验（拼错的键、越界的枚举都会在这里失败）。
       - name: Validate content structure and config

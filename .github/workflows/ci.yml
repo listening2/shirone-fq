@@ -82,7 +82,7 @@ jobs:
       # astro check 前先物化内容：类型生成基于真实内容结构。
       - name: Sync content repository
         env:
-          CONTENT_REPO_URL: https://x-access-token:${{ secrets.CONTENT_REPO_TOKEN }}@github.com/fqzlr/shirone-content-fq.git
+          CONTENT_REPO_URL: https://x-access-token:${{ secrets.CONTENT_REPO_TOKEN }}@github.com/listening2/my-blog-content.git
         run: node scripts/content/sync.mjs
 
       - name: Check Astro diagnostics
@@ -127,5 +127,5 @@ jobs:
 
       - name: Build production site
         env:
-          CONTENT_REPO_URL: https://x-access-token:${{ secrets.CONTENT_REPO_TOKEN }}@github.com/fqzlr/shirone-content-fq.git
+          CONTENT_REPO_URL: https://x-access-token:${{ secrets.CONTENT_REPO_TOKEN }}@github.com/listening2/my-blog-content.git
         run: pnpm build

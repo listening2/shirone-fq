@@ -94,3 +94,5 @@ artifacts/shirone-ai-*
 /public/assets/projects/
 /public/assets/anime/*.webp
 /shirone-content-fq/
+
+.obsidian/

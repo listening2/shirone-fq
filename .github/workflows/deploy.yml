@@ -152,7 +152,7 @@ jobs:
             --token "$VERCEL_TOKEN"
          env:
            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
            VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       # 变体 B：GitHub Pages（需要把顶层 permissions 改为

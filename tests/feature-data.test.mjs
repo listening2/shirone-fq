@@ -60,12 +60,12 @@ describe("Feature Data & Resolver Tests", () => {
 			enable: true,
 			categories: [],
 			order: "asc",
-			disabledTitles: ["Senior Frontend Engineer"],
+			disabledTitles: ["Senior Frontend Engineer"]
 		};
 		const items = [
-			{ title: "Senior Frontend Engineer" },
-			{ title: "Joined an Open Source Project" },
-			{ title: "Started Personal Blog & Tech Notes" },
+			{ title: "Senior Frontend Engineer" , date: "2024-03-01" },
+			{ title: "Joined an Open Source Project" ,date: "2024-01-01"  },
+			{ title: "Started Personal Blog & Tech Notes" ,date: "2023-01-01" },
 		];
 		const resolved = resolveTimelineData(config, items);
 		assert.ok(!resolved.some((t) => t.title === "Senior Frontend Engineer"));

@@ -568,31 +568,28 @@ test.describe("banner wallpaper", () => {
 				window as typeof window & { __stopSwitchSamples?: () => void }
 			).__stopSwitchSamples?.();
 		});
-		const samples =
-			await page.evaluate<
-				{ switching: boolean; opacity: string; height: string }[]
-			>(
-				() =>
-					(
-						window as typeof window & {
-							__switchSamples?: {
-								switching: boolean;
-								opacity: string;
-								height: string;
-							}[];
-						}
-					).__switchSamples ?? [],
-			);
+		const samples = await page.evaluate<
+			{ switching: boolean; opacity: string; height: string }[]
+		>(
+			() =>
+				(
+					window as typeof window & {
+						__switchSamples?: {
+							switching: boolean;
+							opacity: string;
+							height: string;
+						}[];
+					}
+				).__switchSamples ?? [],
+		);
 		expect(samples.length).toBeGreaterThan(3);
 		expect(samples.some((sample) => sample.switching)).toBe(true);
 		// 舞台全程可见：无淡出中间态（不闪白）
-		expect(
-			samples.every((sample) => Number(sample.opacity) === 1),
-		).toBe(true);
+		expect(samples.every((sample) => Number(sample.opacity) === 1)).toBe(true);
 		// 高度连续插值：出现至少一个中间值（非起止两态硬切）
-		expect(new Set(samples.map((sample) => sample.height)).size).toBeGreaterThanOrEqual(
-			3,
-		);
+		expect(
+			new Set(samples.map((sample) => sample.height)).size,
+		).toBeGreaterThanOrEqual(3);
 	});
 
 	test("swup navigation animates stage height without a hard jump", async ({
@@ -605,15 +602,16 @@ test.describe("banner wallpaper", () => {
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 		await waitForBannerState(page, true);
 		// 确保从「横幅」模式开始（有明确的首页/文章页高度差）
-		await page.evaluate(() => window.localStorage.setItem("wallpaper-mode", "banner"));
+		await page.evaluate(() =>
+			window.localStorage.setItem("wallpaper-mode", "banner"),
+		);
 		await page.reload({ waitUntil: "domcontentloaded" });
 		await waitForBannerState(page, true);
 
 		await page.evaluate(() => {
 			const samples: number[] = [];
-			(
-				window as typeof window & { __navSamples?: number[] }
-			).__navSamples = samples;
+			(window as typeof window & { __navSamples?: number[] }).__navSamples =
+				samples;
 			const stage = document.querySelector<HTMLElement>(".banner-stage");
 			if (!stage) return;
 			let last = Number.parseFloat(getComputedStyle(stage).height);
@@ -628,7 +626,9 @@ test.describe("banner wallpaper", () => {
 		});
 
 		const postLink = page
-			.locator("#swup-container a[href*='/posts/']:not(.m3-blog-postcard__cover)")
+			.locator(
+				"#swup-container a[href*='/posts/']:not(.m3-blog-postcard__cover)",
+			)
 			.first();
 		await postLink.click();
 		await page.waitForURL(/\/posts\//);

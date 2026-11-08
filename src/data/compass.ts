@@ -20,7 +20,6 @@ export interface CompassShelf {
 }
 
 export const compassData: CompassShelf[] = [
-
 	{
 		key: "gongjuxiang",
 		name: "工具箱",

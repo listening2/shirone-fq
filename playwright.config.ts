@@ -12,7 +12,8 @@ export default defineConfig({
 	timeout: 30_000,
 	expect: { timeout: 5_000 },
 	// 截图命名去掉平台/项目后缀（-win32），且随 spec 文件旁存放
-	snapshotPathTemplate: "{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}",
+	snapshotPathTemplate:
+		"{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}",
 	fullyParallel: false,
 	workers: 1,
 	retries: 0,

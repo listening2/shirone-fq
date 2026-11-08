@@ -246,7 +246,7 @@ export const aboutSocialLinks: AboutSocialLink[] = [
 		icon: "simple-icons:bilibili",
 		brand: "bilibili",
 	},
-	
+
 	{
 		platform: "Email",
 		handle: "2971017192@qq.com",

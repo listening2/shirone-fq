@@ -30,7 +30,8 @@ export const timelineData: TimelineItem[] = [
 		date: "2026.08",
 		category: "milestone",
 		subtitle: "开源主题升级",
-		description: "重构内容与主题代码解耦机制，实现纯数据驱动的内容外置、无缝合并与强类型校验。",
+		description:
+			"重构内容与主题代码解耦机制，实现纯数据驱动的内容外置、无缝合并与强类型校验。",
 		highlights: [
 			"代码仓与私有内容仓完全分离",
 			"对象递归合并与 TypeScript 编译期拦截",

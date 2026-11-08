@@ -12,8 +12,14 @@ import {
 
 describe("friend-check 纯函数层", () => {
 	it("normalizeSiteUrl 去尾斜杠与空白，作为匹配键", () => {
-		assert.equal(normalizeSiteUrl(" https://a.example.com/ "), "https://a.example.com");
-		assert.equal(normalizeSiteUrl("https://a.example.com///"), "https://a.example.com");
+		assert.equal(
+			normalizeSiteUrl(" https://a.example.com/ "),
+			"https://a.example.com",
+		);
+		assert.equal(
+			normalizeSiteUrl("https://a.example.com///"),
+			"https://a.example.com",
+		);
 		assert.equal(normalizeSiteUrl(""), "");
 	});
 
@@ -36,7 +42,12 @@ describe("friend-check 纯函数层", () => {
 		const map = buildStatusMap(
 			{
 				link_status: [
-					{ link: "https://a.com/", latency: 0.5, fail_count: 0, siteshot: "https://shot/a.png" },
+					{
+						link: "https://a.com/",
+						latency: 0.5,
+						fail_count: 0,
+						siteshot: "https://shot/a.png",
+					},
 					{ link: "https://b.com", latency: -1, fail_count: 3 },
 					{ link: "" },
 					{ latency: 1 },
@@ -91,9 +102,18 @@ describe("friend-check 纯函数层", () => {
 			[1, 6],
 			[7, 9999],
 		);
-		assert.deepEqual(pending.map((e) => e.friend.title), ["B", "D"]);
-		assert.deepEqual(pending.map((e) => e.failCount), [3, 1]);
-		assert.deepEqual(graveyard.map((e) => e.friend.title), ["C"]);
+		assert.deepEqual(
+			pending.map((e) => e.friend.title),
+			["B", "D"],
+		);
+		assert.deepEqual(
+			pending.map((e) => e.failCount),
+			[3, 1],
+		);
+		assert.deepEqual(
+			graveyard.map((e) => e.friend.title),
+			["C"],
+		);
 	});
 
 	it("groupByFailCount 无记录的友链不落入任何分区", () => {

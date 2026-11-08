@@ -36,9 +36,6 @@ export const friendsData: FriendItem[] = [
 		linkpage: "https://blog.fqzlr.top/friends/",
 		featured: true,
 	},
-
-	
-	
 ];
 
 export function getFriendsList(): FriendItem[] {

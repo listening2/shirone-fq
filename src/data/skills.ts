@@ -17,7 +17,8 @@ export interface SkillItem {
 export const skillsData: SkillItem[] = [
 	{
 		name: "JavaScript",
-		description: "ES2020+ syntax, async plumbing, and event-driven browser code.",
+		description:
+			"ES2020+ syntax, async plumbing, and event-driven browser code.",
 		icon: "simple-icons:javascript",
 		category: "frontend",
 		level: "advanced",

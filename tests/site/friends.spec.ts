@@ -26,9 +26,7 @@ test.describe("友链页", () => {
 		await expect(first).toHaveAttribute("href", "https://blog.fqzlr.top/");
 		await expect(first).toHaveAttribute("target", "_blank");
 		await expect(first).toContainText("番茄主理人");
-		await expect(first.locator(".friend-card__tag").first()).toHaveText(
-			"Blog",
-		);
+		await expect(first.locator(".friend-card__tag").first()).toHaveText("Blog");
 	});
 
 	test("使用站点统一的友链视觉结构", async ({ page }) => {
@@ -37,9 +35,7 @@ test.describe("友链页", () => {
 		await expect(page.locator(".page-header__title")).toHaveText("友链");
 		await expect(page.locator(".page-header__icon svg")).toHaveCount(1);
 		// PostCard 式箭头（chevron，hover 右滑）；检测关闭时无状态徽标抢占位置
-		await expect(page.locator(".friend-card__arrow")).toHaveCount(
-			FRIEND_COUNT,
-		);
+		await expect(page.locator(".friend-card__arrow")).toHaveCount(FRIEND_COUNT);
 		// 官方 Chips 原子（filter 形态）承担标签筛选；当前数据只有 Blog 一个标签
 		await expect(
 			page.locator(".friend-section__chips .m3-chip--filter"),
@@ -151,38 +147,38 @@ test.describe("友链页 Swup 导航", () => {
 
 			await page.locator('#top-row a[data-nav-key="home"]').click();
 			await expect(page).toHaveURL(/\/$/);
-			}
-			});
-			});
+		}
+	});
+});
 
-			test("friends.json 端点按 check-flink 契约输出（含 linkpage 字段）", async ({
-			request,
-			}) => {
-			const resp = await request.get("/friends.json");
-			expect(resp.status()).toBe(200);
-			const body = (await resp.json()) as {
-			link_list: Array<Record<string, unknown>>;
-			length: number;
-			};
-			expect(Array.isArray(body.link_list)).toBe(true);
-			expect(body.link_list).toHaveLength(FRIEND_COUNT);
-			expect(body.length).toBe(FRIEND_COUNT);
-			const sample = body.link_list[0];
-			for (const key of [
-			"name",
-			"link",
-			"avatar",
-			"descr",
-			"siteshot",
-			"linkpage",
-			]) {
-			expect(sample, `端点缺失字段 ${key}`).toHaveProperty(key);
-			}
-			// linkpage 为可选字符串（缺省空串，由数据驱动），供 check-flink 反链检测
-			expect(typeof sample.linkpage).toBe("string");
-			// 端点透传数据原样：至少包含本站站长卡片
-			const owner = (body.link_list as Array<{ link: string }>).find(
-			(f) => f.link === "https://blog.fqzlr.top/",
-			);
-			expect(owner).toBeDefined();
-			});
+test("friends.json 端点按 check-flink 契约输出（含 linkpage 字段）", async ({
+	request,
+}) => {
+	const resp = await request.get("/friends.json");
+	expect(resp.status()).toBe(200);
+	const body = (await resp.json()) as {
+		link_list: Array<Record<string, unknown>>;
+		length: number;
+	};
+	expect(Array.isArray(body.link_list)).toBe(true);
+	expect(body.link_list).toHaveLength(FRIEND_COUNT);
+	expect(body.length).toBe(FRIEND_COUNT);
+	const sample = body.link_list[0];
+	for (const key of [
+		"name",
+		"link",
+		"avatar",
+		"descr",
+		"siteshot",
+		"linkpage",
+	]) {
+		expect(sample, `端点缺失字段 ${key}`).toHaveProperty(key);
+	}
+	// linkpage 为可选字符串（缺省空串，由数据驱动），供 check-flink 反链检测
+	expect(typeof sample.linkpage).toBe("string");
+	// 端点透传数据原样：至少包含本站站长卡片
+	const owner = (body.link_list as Array<{ link: string }>).find(
+		(f) => f.link === "https://blog.fqzlr.top/",
+	);
+	expect(owner).toBeDefined();
+});

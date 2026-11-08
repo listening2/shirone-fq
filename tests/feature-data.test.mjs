@@ -49,11 +49,7 @@ describe("Feature Data & Resolver Tests", () => {
 			categories: [],
 			disabledNames: ["PHP"],
 		};
-		const items = [
-			{ name: "TypeScript" },
-			{ name: "Rust" },
-			{ name: "PHP" },
-		];
+		const items = [{ name: "TypeScript" }, { name: "Rust" }, { name: "PHP" }];
 		const resolved = resolveSkillsData(config, items);
 		assert.ok(resolved.some((s) => s.name === "TypeScript"));
 		assert.ok(!resolved.some((s) => s.name === "PHP"));

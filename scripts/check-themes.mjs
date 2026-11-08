@@ -4,7 +4,7 @@
 //        每条顶层选择器都带 html[data-site-theme="<id>"] 前缀。
 // 失败 = 打印问题清单并 exit 1。
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 

@@ -3,8 +3,8 @@
 // 通过 = 每个 manifest 条目都有对应文件，且每个原子文件都被 manifest 登记，分类一致。
 // 失败 = 打印差异清单并 exit 1。
 
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
-import { join, relative, dirname } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));

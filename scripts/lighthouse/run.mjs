@@ -1,4 +1,4 @@
-import { spawn, execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 const deviceArg = process.argv.find((arg) => arg.startsWith("--device="));
 const device = deviceArg?.split("=")[1] === "mobile" ? "mobile" : "desktop";

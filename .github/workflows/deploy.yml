@@ -140,21 +140,21 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
       # 部署：按你的平台替换这一步，下面给了四种常见写法。
       # ───────────────────────────────────────────────────────────────────────
-      - name: Deploy
+      #- name: Deploy
+      #  run: |
+      #    echo "把这一步替换成你的平台部署命令，构建产物在 dist/。" >&2
+      #    exit 1
+
+      # 变体 A：Vercel（关闭 Vercel 的 Git 自动构建，改由 Actions 交付产物） 
+             # 变体 A: Vercel
+      - name: Deploy to Vercel
         run: |
-          echo "把这一步替换成你的平台部署命令，构建产物在 dist/。" >&2
-          exit 1
-
-      # 变体 A：Vercel（关闭 Vercel 的 Git 自动构建，改由 Actions 交付产物）
-       - name: Deploy to Vercel
-         run: |
-           pnpm dlx vercel@latest deploy dist --prod --yes \
+          pnpm dlx vercel@latest deploy dist --prod --yes \
             --token "$VERCEL_TOKEN"
-         env:
-           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       # 变体 B：GitHub Pages（需要把顶层 permissions 改为
       # `contents: read` + `pages: write` + `id-token: write`，并配置 environment）
       # - name: Upload Pages artifact
